@@ -11,23 +11,53 @@ def readme():
 
 packages = [
         'normflow',
+        'normflow.action',
         'normflow.lib',
+        'normflow.lib.combo',
+        'normflow.lib.eig_handle',
+        'normflow.lib.optim',
+        'normflow.lib.spline',
+        'normflow.lib.stats',
+        'normflow.mask',
+        'normflow.mcmc',
+        'normflow.nn',
+        'normflow.nn.gauge',
+        'normflow.nn.matrix',
+        'normflow.nn.scalar',
+        'normflow.prior',
         'normflow.util',
-        'normflow.models',
-        'normflow.measure'
+        'normflow.util.assembler',
+        'normflow.util.measure',
+        'normflow.util.models',
+        'normflow.util.plot'
         ]
 
 package_dir = {
         'normflow': 'src',
+        'normflow.action': 'src/action',
         'normflow.lib': 'src/lib',
+        'normflow.lib.combo': 'src/lib/combo',
+        'normflow.lib.eig_handle': 'src/lib/eig_handle',
+        'normflow.lib.optim': 'src/lib/optim',
+        'normflow.lib.spline': 'src/lib/spline',
+        'normflow.lib.stats': 'src/lib/stats',
+        'normflow.mask': 'src/mask',
+        'normflow.mcmc': 'src/mcmc',
+        'normflow.nn': 'src/nn',
+        'normflow.nn.gauge': 'src/nn/gauge',
+        'normflow.nn.matrix': 'src/nn/matrix',
+        'normflow.nn.scalar': 'src/nn/scalar',
+        'normflow.prior': 'src/prior',
         'normflow.util': 'src/util',
-        'normflow.models': 'src/models',
-        'normflow.measure': 'src/measure'
+        'normflow.util.assembler': 'src/util/assembler',
+        'normflow.util.measure': 'src/util/measure',
+        'normflow.util.models': 'src/util/models',
+        'normflow.util.plot': 'src/util/plot'
         }
 
 setup(name='normflow',
-      version='1.0',
-      description='Normalizing flows as generative models for QFT simulations',
+      version='1.1',
+      description='Normalizing flows for generating quantum field configurations',
       packages=packages,
       package_dir=package_dir,
       url='http://github.com/jkomijani/normflow',

@@ -27,27 +27,8 @@ import copy
 
 import numpy as np
 
-from ._mcmc import MCMCSampler, BlockedMCMCSampler
-from ._generic import Resampler
-from ._generic import grab, estimate_logz, fmt_value_err
-
-
-# =============================================================================
-if torch.cuda.is_available():
-    torch_device = 'cuda'
-    float_dtype = torch.cuda.FloatTensor  # np.float32 # single
-    # float_dtype = torch.cuda.DoubleTensor  # np.float64 # double
-else:
-    torch_device = 'cpu'
-    float_dtype = torch.DoubleTensor  # np.float64 # double
-torch.set_default_tensor_type(float_dtype)
-print(f"torch device: {torch_device}")
-
-
-def reset_default_tensor_type(dtype, device=torch_device):
-    torch.set_default_tensor_type(dtype)
-    global float_dtype, torch_device
-    float_dtype, torch_device = dtype, device
+from .mcmc import MCMCSampler, BlockedMCMCSampler
+from .lib.combo import estimate_logz, fmt_val_err, seize
 
 
 # =============================================================================
@@ -111,22 +92,26 @@ class RawDistribution:
         return self._model.net_(self._model.prior.sample(batch_size))[0]
 
     @torch.no_grad()
-    def sample_(self, batch_size=1):
-        """Return `batch_size` samples along with corresponding `log(q/p)`."""
-        x = self._model.prior.sample(batch_size)
-        y, logJ = self._model.net_(x)
-        logq = self._model.prior.log_prob(x) - logJ
-        logp = -self._model.action(y)  # logp is log(p * z)
-        return y, logq - logp
+    def sample_(self, batch_size=1, preprocess_func=None):
+        """
+        Return `batch_size` samples along with `log(q)` and `log(p)`.
 
-    @torch.no_grad()
-    def serial_sample_generator(self, n_samples, batch_size=128):
-        """Yield samples one by one"""
-        for i in range(n_samples):
-            ind = i % batch_size  # the index of the batch
-            if ind == 0:
-                y, logqp = self.sample_(batch_size)  # logqp is logq - logp
-            yield y[ind].unsqueeze(0), logqp[ind].unsqueeze(0)
+        Parameters
+        ----------
+        batch_size: int
+            The size of the samples
+
+        preprocess_func: None or a function
+            Introduced to preprocess the prior sample if needed
+        """
+        x = self._model.prior.sample(batch_size)
+        if preprocess_func is not None:
+            x = preprocess_func(x)
+        y, logJ = self._model.net_(x)
+        logr = self._model.prior.log_prob(x)
+        logq = logr - logJ
+        logp = -self._model.action(y)  # logp is log(p * z)
+        return y, logq, logp
 
     def log_prob(self, y, action_logz=0):
         """Returns log probability up to an additive constant."""
@@ -145,7 +130,7 @@ class Fitter:
     def __init__(self, model):
         self._model = model
 
-        self.train_history = dict(loss=[], logqp=[], logz=[])
+        self.train_history = dict(loss=[], logqp=[], logz=[], ess=[])
 
         self.train_metadata = dict(n_hits=1, print_time=True)
 
@@ -256,9 +241,11 @@ class Fitter:
         n_hits = self.train_metadata['n_hits']
 
         x = prior.sample(batch_size)
-        logq = prior.log_prob(x)
+        logr = prior.log_prob(x)
         for _ in range(n_hits):
-            logp = -action(*net_(x))  # logJ is absorbed in logp
+            y, logJ = net_(x)
+            logq = logr - logJ
+            logp = -action(y)
             loss = self.loss_fn(logq, logp)
             self.optimizer.zero_grad()  # clears old gradients from last steps
             loss.backward()
@@ -313,13 +300,22 @@ class Fitter:
         logz = torch.logsumexp(logp -logq, dim=0) - np.log(logp.shape[0])
         return -logz
 
+    @staticmethod
+    def calc_ess(logqp):
+        """ESS: effective sample size"""
+        log_ess = 2*torch.logsumexp(-logqp, dim=0) - torch.logsumexp(-2*logqp, dim=0)
+        ess = torch.exp(log_ess) / len(logqp)  # normalized
+        return ess
+
     @torch.no_grad()
     def _append_to_train_history(self, logqp):
         # logqp = logq - logp;  more precisely, logqp = log(q) - log(p * z)
-        logz = estimate_logz(logqp)  # returns (mean, std)
+        logz = estimate_logz(logqp, method='jackknife')  # returns (mean, std)
+        ess = self.calc_ess(logqp)
         logqp = (logqp.mean().item(), logqp.std().item())
         self.train_history['logqp'].append(logqp)
         self.train_history['logz'].append(logz)
+        self.train_history['ess'].append(ess)
 
     def print_fit_status(self, epoch):
         mydict = self.train_history
@@ -336,145 +332,19 @@ class Fitter:
         str_ = "Epoch {0} | loss = {1} | log(z) = {2} | log(q/p) = {3}".format(
                 epoch,
                 "%g" % loss,
-                fmt_value_err(logz_mean, logz_std, err_digits=2),
-                fmt_value_err(adjusted_logqp_mean, logqp_std, err_digits=2),
+                fmt_val_err(logz_mean, logz_std, err_digits=2),
+                fmt_val_err(adjusted_logqp_mean, logqp_std, err_digits=2),
                 )
+        str_ += f"| ess = {mydict['ess'][-1]:g}"
         print(str_, self.checkpoint_dict['print_extra_func'](epoch))
 
 
 # =============================================================================
-class Module_(torch.nn.Module):
-    """A prototype class: like a `torch.nn.Module` except for the `forward`
-    and `backward` methods that handle the Jacobians of the transformation.
-    We use trailing underscore to denote the neworks in which the `forward`
-    and `backward` methods handle the Jacobians of the transformation.
-    """
-
-    # We are going to call sum_density with prefix self, so you need to include
-    # self as the first argument. 
-    sum_density = lambda self, x: torch.sum(x, dim=list(range(1, x.dim())))
-
-    _propagate_density = False  # for test
-
-    def __init__(self, label=None):
-        super().__init__()
-        self.label = label
-
-    def forward(self, x, log0=0):
-        pass
-
-    def backward(self, x, log0=0):
-        pass
-
-    def transfer(self, **kwargs):
-        return copy.deepcopy(self)
-
-    @staticmethod
-    def _set_propagate_density(propagate_density):
-        """Define a lambda function for (not) summing up a tensor over all axes
-        except the batch axis."""
-        if propagate_density:
-            func = lambda dummy, x: x
-        else:
-            func = lambda dummy, x: torch.sum(x, dim=list(range(1, x.dim())))
-        Module_.sum_density = func
-        # because sum_density is a method, the first input would be `self`
-        # or any dummy variable
-        Module_._propagate_density = propagate_density
-
-
-# =============================================================================
-class ModuleList_(torch.nn.ModuleList):
-    # Do NOT build any child class of ModuleList_!
-    # pickle has a problem with saving/loading child classes of ModuleList_;
-    # it saves their instances as ModuleList_ instances!
-    """Like `torch.nn.ModuleList` except for the `forward` and `backward`
-    methods that handle the Jacobians of the transformation.
-    We use trailing underscore to denote the neworks in which the `forward`
-    and `backward` methods handle the Jacobians of the transformation.
-
-    Parameters
-    ----------
-    nets_ : instance of Module_ or ModuleList_
-    """
-
-    def __init__(self, nets_, label=None):
-        super().__init__(nets_)
-        self.label = label
-        self._groups = None
-
-    def forward(self, x, log0=0):
-        for net_ in self:
-            x, log0 = net_.forward(x, log0)
-        return x, log0
-
-    def backward(self, x, log0=0):
-        for net_ in self[::-1]:
-            x, log0 = net_.backward(x, log0)
-        return x, log0
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-    def parameters(self):
-        if self._groups is None:
-            return super().parameters()
-        else:
-            params_list = []
-            sum_ = lambda x: sum(x, start=[])
-            for grp in self._groups:
-                par = sum_([list(self[k].parameters()) for k in grp['ind']])
-                params_list.append(dict(params=par, **grp['hyper']))
-            return params_list
-
-    def setup_groups(self, groups=None):
-        """If group is not None, it must be a list of dicts. e.g. as
-        groups = [{'ind': [0, 1], 'hyper': dict(weight_decay=1e-4)},
-                  {'ind': [2, 3], 'hyper': dict(weight_decay=1e-2)}]
-        """
-        self._groups = groups
-
-    def npar(self):
-        count = lambda x: np.product(x)
-        return sum([count(p.shape) for p in super().parameters()])
-
-    def hack(self, x, log0=0):
-        """Similar to the forward method, except that returns the output of
-        middle blocks too; useful for examining effects of each block.
-        """
-        stack = [(x, log0)]
-        for net_ in self:
-            x, log0 = net_.forward(x, log0)
-            stack.append((x, log0))
-        return stack
-
-    def transfer(self, **kwargs):
-        return ModuleList_([net_.transfer(**kwargs) for net_ in self])
-
-    def get_weights_blob(self):
-        serialized_model = io.BytesIO()
-        torch.save(self.state_dict(), serialized_model)
-        return base64.b64encode(serialized_model.getbuffer()).decode('utf-8')
-
-    def set_weights_blob(self, blob):
-        weights = torch.load(
-                io.BytesIO(base64.b64decode(blob.strip())),
-                map_location=torch.device('cpu'))
-        self.load_state_dict(weights)
-        if torch_device == 'cuda':
-            self.cuda()
-
-    def freeze_parameters(self):
-        for param in self.parameters():
-            param.requires_grad = False
-
-    def unfreeze_parameters(self):
-        for param in self.parameters():
-            param.requires_grad = True
-
-    @staticmethod
-    def _set_propagate_density(arg):
-        Module_._set_propagate_density(arg)
-
-
-# =============================================================================
+@torch.no_grad()
+def backward_sanitychecker(model, n_samples=5):
+    """Performs a sanity check on the backward method of networks."""
+    x = model.prior.sample(n_samples)
+    y, logJ = model.net_(x)
+    x_hat, log0_hat = model.net_.backward(y, logJ)
+    print("Sanity check is OK if following numbers are zero up to round off:")
+    print([torch.sum(torch.abs(x - x_hat)), torch.sum(torch.abs(log0_hat))])
