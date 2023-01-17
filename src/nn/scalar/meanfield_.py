@@ -35,7 +35,6 @@ class MeanFieldNet_(Module_):
             x_mean_new_scaled, log0 = self.dc_.forward(x * rvol, log0)
             return x_mean_new_scaled / rvol, log0
 
-
     def backward(self, x, log0=0, rvol=None):
         # To normalize data, multiply \& divide by square root of volume
         if rvol is None:

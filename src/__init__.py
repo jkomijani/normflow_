@@ -7,7 +7,7 @@ from ._global_settings import manual_torch_seed, manual_numpy_seed
 
 # _normflowcore
 from ._normflowcore import Model
-from ._normflowcore import np, torch, seize
+from ._normflowcore import np, torch
 from ._normflowcore import backward_sanitychecker
 
 # the rest...

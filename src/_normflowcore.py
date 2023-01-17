@@ -23,12 +23,11 @@ import torch
 import base64
 import io
 import time
-import copy
 
 import numpy as np
 
 from .mcmc import MCMCSampler, BlockedMCMCSampler
-from .lib.combo import estimate_logz, fmt_val_err, seize
+from .lib.combo import estimate_logz, fmt_val_err
 
 
 # =============================================================================
@@ -268,12 +267,8 @@ class Fitter:
 
     @staticmethod
     def calc_kl_mean(logq, logp):
-        """An example with extremely small tunneling (like $m^2 = -1$ and
-        $\lambda = 0.01$ shows that the only method that gives a reasonable
-        result is this one; thus, ignore other methods such as calc_kl_var
-        and...
-        """
-        return (logq - logp).mean()  # reverse KL, assuming samples from q
+        """Return Kullback–Leibler divergence estimated from logq and logp"""
+        return (logq - logp).mean()  # KL, assuming samples from q
 
     @staticmethod
     def calc_kl_var(logq, logp):
@@ -335,7 +330,7 @@ class Fitter:
                 fmt_val_err(logz_mean, logz_std, err_digits=2),
                 fmt_val_err(adjusted_logqp_mean, logqp_std, err_digits=2),
                 )
-        str_ += f"| ess = {mydict['ess'][-1]:g}"
+        str_ += f" | ess = {mydict['ess'][-1]:g}"
         print(str_, self.checkpoint_dict['print_extra_func'](epoch))
 
 
