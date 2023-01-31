@@ -32,12 +32,12 @@ class MatrixModule_(Module_):
         return self._kernel(self.net_.backward, x=x, log0=log0)
 
     def _kernel(self, net_method_, *, x, log0=0):
-        """Return transformed x and and its Jacobian.
+        """Return the transformed x and its Jacobian.
 
         Here are the steps:
-        1.  compute independent parameters corresp. to eigenvalues of matrix x,
-        2.  transform the parameters,
-        3.  construct new matrices with the transformed parameters.
+        1. compute independent parameters corresp. to eigenvalues of matrix x,
+        2. transform the parameters,
+        3. construct new matrices with the transformed parameters.
         """
         param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
         # The channel axis, in which the param are listed, should be moved to 1

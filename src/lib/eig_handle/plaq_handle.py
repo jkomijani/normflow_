@@ -16,7 +16,7 @@ class PlaqHandle:
         # zpmasked -> zebra planar masked
         """Calculate un-traced plaquettes according to a zebra planar mask,
         where the plane is specified with indices `(mu, nu)` and `parity`
-        specifies the parity of the mask.
+        specified in the zebra planar mask.
 
         In the following cartoon:
         1. Horizontal & vertical axes are `(mu, nu)` axes.
@@ -37,13 +37,11 @@ class PlaqHandle:
 
         Parameters
         ----------
-        mu, nu, parity: int, int, int
-            As described above
-        x_mu_white, x_mu_black, x_nu_white: tensor, tensor, tensor
-            As described above
-        plaq_rule: lambda function (optional)
-            A function for calculating the plaquette from links. The default one
-            is for U(1) links.
+        x_mu, x_nu : tensor, tensor
+            The links in mu and nu directions.
+        zpmask : mask
+            A zebra planar mask that is supposed to have mu, nu, and parity
+            properties and a split method.
         """
         x_mu_white, x_mu_black = zpmask.split(x_mu)
         x_nu_white, x_nu_black = zpmask.split(x_nu)
@@ -63,11 +61,15 @@ class PlaqHandle:
 
     def calc_zpmasked_open_plaqlongplaq(self, x_mu, x_nu, zpmask):
         """Similar to ``calc_zpmasked_open_plaq()`` but also calculate the
-        so-called long plaquettes (long in nu direction).
+        so-called long plaquettes (long in the nu direction).
 
         The output will have a channels axis (at dim=1), where the first and
         second channels are the open plaquettes and long plaquettes,
-        respectively.
+        respectively. However, note that the corresponding channels axis can
+        change to 2 if another channels axis is added to the data. For example,
+        when we canculate the eigenvalues of the open plaquettes, we may put
+        the eigenvalues as a new channels axis (at dim=1), which in turn, moves
+        the axis corresponding to the open plaquettes and long plaquettes to 2.
         """
         # zpmasked -> zebra planar masked
         x_mu_white, x_mu_black = zpmask.split(x_mu)
@@ -135,6 +137,19 @@ class PlaqHandle:
         return mul(mul(a, b.adjoint()), c)
 
 
+class LongPlaqHandle(PlaqHandle):
+
+    def calc_zpmasked_open_plaq(self, *args):
+        return super().calc_zpmasked_open_plaqlongplaq(*args)
+
+    def push_plaq2links(self, *, new_plaq, old_plaq, **kwargs):
+        return super().push_plaq2links(
+                                       new_plaq=new_plaq[:, 0],
+                                       old_plaq=old_plaq[:, 0],
+                                       **kwargs
+                                       )
+
+
 class U1PlaqHandle(PlaqHandle):
     """Properties and methods are chosen to be consistent with SU(n)."""
 
@@ -151,4 +166,9 @@ class U1PlaqHandle(PlaqHandle):
         return a * b.conj() * c
 
 
+class U1LongPlaqHandle(U1PlaqHandle, LongPlaqHandle):
+    pass
+
+
 SUnPlaqHandle = PlaqHandle
+SUnLongPlaqHandle = LongPlaqHandle

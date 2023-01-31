@@ -11,6 +11,19 @@ from .._core import Module_, ModuleList_
 
 # =============================================================================
 class GaugeModuleList_(torch.nn.ModuleList):
+    """Like ModuleList_, but transforms gauge links according to a pattern as
+    described below.
+
+
+    Parameters
+    ----------
+    nets_ : a list of instances of Module_ or ModuleList_
+
+    Using net_ to denote each element of nets_, net_ takes as inputs two
+    sets of links in directions of mu and nu and transforms the first set in
+    the mu direction. The directions mu and nu must be specified in the mask
+    used in net_ that we call zpmask, standing for zebra planar mask.
+    """
 
     vector_axis = 1  # note that batch axis is 0
 

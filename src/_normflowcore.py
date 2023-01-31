@@ -58,7 +58,8 @@ class Model:
 
         self.fit = Fitter(self)
 
-        self.raw_dist = RawDistribution(self)
+        self.raw_dist = RawDistribution(self)  # todo: raw_dist -> trained_dist
+        self.trained_dist = self.raw_dist  # temporary solution
         self.mcmc = MCMCSampler(self)
         self.blocked_mcmc = BlockedMCMCSampler(self)
 
@@ -112,9 +113,13 @@ class RawDistribution:
         logp = -self._model.action(y)  # logp is log(p * z)
         return y, logq, logp
 
-    def log_prob(self, y, action_logz=0):
-        """Returns log probability up to an additive constant."""
-        return -self._model.action(y) - action_logz
+    def log_prob(self, y):
+        """Returns log probability of the samples."""
+        x, minus_logJ = self._model.net_.backward(y)
+        logr = self._model.prior.log_prob(x)
+        logq = logr + minus_logJ
+        return logq
+
 
 
 # =============================================================================
@@ -186,7 +191,6 @@ class Fitter:
         """
         self.train_metadata.update(train_metadata)
         self.hyperparam.update(hyperparam)
-        self.train_metadata.update(train_metadata)
         self.checkpoint_dict.update(checkpoint_dict)
 
         self.loss_fn = Fitter.calc_kl_mean if loss_fn is None else loss_fn
@@ -227,7 +231,6 @@ class Fitter:
             if self.scheduler is not None:
                 self.scheduler.step()
         T2 = time.time()
-        last_epoch = len(self.train_history["loss"]) + 1
         if self.train_metadata['print_time']:
             print("Time = {:.3g} sec.".format(T2 - T1))
 

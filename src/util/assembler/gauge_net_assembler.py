@@ -3,18 +3,22 @@
 
 from normflow import np, torch, torch_device, float_dtype, float_tensortype
 from normflow.nn import ModuleList_
-from normflow.nn import PlanarGaugeModule_, NewPlanarGaugeModule_, GaugeModuleList_
+from normflow.nn import PlanarGaugeModule_, GaugeModuleList_
 from normflow.util.assembler import NetAssembler
 
 
 class GaugeNetAssembler:
 
-    def __init__(self, features_shape, *, plaq_handle, matrix_handle, **kwargs):
+    def __init__(self,
+            features_shape, *, plaq_handle, matrix_handle, net_assembler_dict={}
+            ):
 
         self.features_shape = features_shape
         self.matrix_handle = matrix_handle  # to parametrize matrices
-        self.plaq_handle = plaq_handle  # to relate plaq to links and vice versa
-        self.planar_assemblers = self.make_planar_assemblers(features_shape, **kwargs)
+        self.plaq_handle = plaq_handle  # to relate plaq to links & vice versa
+        self.planar_assemblers = self.make_planar_assemblers(
+                features_shape, **net_assembler_dict
+                )
 
         self.nets_ = []
 
@@ -22,7 +26,7 @@ class GaugeNetAssembler:
         return GaugeModuleList_(self.nets_)
 
     @staticmethod
-    def make_planar_assemblers(shape, **kwargs):
+    def make_planar_assemblers(shape, **net_assembler_kwargs):
         """Make one sub-assembler for each plane mainly because each plane can
         have a different mask shape and we want to use the same mask for each
         plane.
@@ -33,22 +37,14 @@ class GaugeNetAssembler:
             nu = (mu - 1) % ndim
             sub_shape = [ell for ell in shape]
             sub_shape[nu] = sub_shape[nu] // 2
-            planar_assemblers[(mu, nu)] = NetAssembler(sub_shape, **kwargs)
+            planar_assemblers[(mu, nu)] = NetAssembler(
+                    sub_shape, **net_assembler_kwargs
+                    )
         return planar_assemblers
 
     def add_planar_gauge_module_(self, net_, *, zpmask, **kwargs):
         self.nets_.append(
                 PlanarGaugeModule_(
-                    net_,
-                    zpmask=zpmask,
-                    plaq_handle=self.plaq_handle,
-                    matrix_handle=self.matrix_handle,
-                    **kwargs)
-                )
-
-    def add_new_planar_gauge_module_(self, net_, *, zpmask, **kwargs):
-        self.nets_.append(
-                NewPlanarGaugeModule_(
                     net_,
                     zpmask=zpmask,
                     plaq_handle=self.plaq_handle,

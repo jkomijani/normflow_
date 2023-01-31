@@ -28,8 +28,7 @@ packages = [
         'normflow.util',
         'normflow.util.assembler',
         'normflow.util.measure',
-        'normflow.util.models',
-        'normflow.util.plot'
+        'normflow.util.models'
         ]
 
 package_dir = {
@@ -51,8 +50,7 @@ package_dir = {
         'normflow.util': 'src/util',
         'normflow.util.assembler': 'src/util/assembler',
         'normflow.util.measure': 'src/util/measure',
-        'normflow.util.models': 'src/util/models',
-        'normflow.util.plot': 'src/util/plot'
+        'normflow.util.models': 'src/util/models'
         }
 
 setup(name='normflow',

@@ -30,7 +30,7 @@ class SU2RQSplineBlock_(RQSplineBlock_):
 
         super().__init__(net0, net1, xlim=xlim, ylim=ylim, **kwargs)
 
-    def preprocess_fz(self, x):
+    def preprocess_fz(self, x):  # fz: frozen
         return x
 
     def preprocess(self, x):
@@ -45,14 +45,14 @@ class U1RQSplineBlock_(RQSplineBlock_):
     1. The input `x` is a phase between (-pi, pi],
        and the output will be in the same range.
     2. The input `x` already has a channel axis,
-       but we need to include cosine and since of the input.
+       but we need to include cos and sin of the input.
     """
 
     def __init__(self, net0, net1, xlim=(-pi, pi), ylim=(-pi, pi), **kwargs):
 
         super().__init__(net0, net1, xlim=xlim, ylim=ylim, **kwargs)
 
-    def preprocess_fz(self, x):
+    def preprocess_fz(self, x):  # fz: frozen
         # return x  # torch.cos(x)
         return torch.cat((torch.cos(x), torch.sin(x)), dim=self.channels_axis)
 

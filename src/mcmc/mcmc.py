@@ -111,6 +111,10 @@ class MCMCSampler:
         else:
             return mean, std
 
+    def log_prob(self, y, action_logz=0):
+        """Returns log probability up to an additive constant."""
+        return -self._model.action(y) - action_logz
+
 
 # =============================================================================
 class BlockedMCMCSampler(MCMCSampler):
