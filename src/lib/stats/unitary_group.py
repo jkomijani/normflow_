@@ -77,7 +77,7 @@ class UnGroup:
         if self.reduced_shape:
             shape = (*shape, 1)  # restore the reduced dimension
 
-        return torch.zeros(shape) - self.log_group_vol
+        return torch.zeros(shape, device=x.device) - self.log_group_vol
 
     def sample(self, size=(1,)):  # this is the `sample` of dist (not prior)
         """Draw random samples."""
@@ -145,16 +145,16 @@ class U1Group:
         low = torch.zeros(shape)
         high = torch.ones(shape) * (2 * pi)
         self.shape = shape
-        self.dist = torch.distributions.uniform.Uniform(low, high)
+        self.uniform_dist = torch.distributions.uniform.Uniform(low, high)
         self.log_group_vol = np.log(2 * pi)
         self.log_tot_vol = np.log(2 * pi) + np.log(np.product(shape))
 
     def sample(self, size=(1,)):  # this is the `sample` of dist (not prior)
-        return torch.exp(1j * self.dist.sample(size))
+        return torch.exp(1j * self.uniform_dist.sample(size))
 
     def log_prob(self, x):
         """This is the real part of math:`log(p(z))`, ie math:`log(|p(z)|)`."""
-        return torch.zeros(x.shape) - self.log_group_vol
+        return torch.zeros(x.shape, device=x.device) - self.log_group_vol
 
 
 # =============================================================================

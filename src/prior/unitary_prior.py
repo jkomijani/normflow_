@@ -15,6 +15,12 @@ class UnPrior(Prior):
         super().__init__(dist, **kwargs)
         self.shape = shape
 
+    def to(self, *args, **kwargs):
+        # moves the distribution parameters to a device, which implies that
+        # samples will also be created on that device
+        self.dist.normal_dist.loc = self.dist.normal_dist.loc.to(*args, **kwargs)
+        self.dist.normal_dist.scale = self.dist.normal_dist.scale.to(*args, **kwargs)
+
 
 class SUnPrior(Prior):
     """Generate random special unitary matrices, i.e. random SU(n)."""
@@ -23,6 +29,12 @@ class SUnPrior(Prior):
         dist = SUnGroup(n, shape)
         super().__init__(dist, **kwargs)
         self.shape = shape
+
+    def to(self, *args, **kwargs):
+        # moves the distribution parameters to a device, which implies that
+        # samples will also be created on that device
+        self.dist.normal_dist.loc = self.dist.normal_dist.loc.to(*args, **kwargs)
+        self.dist.normal_dist.scale = self.dist.normal_dist.scale.to(*args, **kwargs)
 
 
 class U1Prior(Prior):
@@ -35,3 +47,9 @@ class U1Prior(Prior):
         dist = U1Group(shape)
         super().__init__(dist, **kwargs)
         self.shape = shape
+
+    def to(self, *args, **kwargs):
+        # moves the distribution parameters to a device, which implies that
+        # samples will also be created on that device
+        self.dist.uniform_dist.loc = self.dist.uniform_dist.loc.to(*args, **kwargs)
+        self.dist.uniform_dist.scale = self.dist.uniform_dist.scale.to(*args, **kwargs)

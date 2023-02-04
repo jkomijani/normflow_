@@ -29,7 +29,7 @@ class SplitMask:
         return x_chnl
 
 
-class Mask:
+class Mask(torch.nn.Module):
     """Each mask must have two methods: `split` and `cat` to split and
     concatenate the data according to the mask. Another method called ``purify``
     is needed to make sure the data is zero where it must be zero.
@@ -46,16 +46,18 @@ class Mask:
             Can be either of 'even-odd' or 'half-half'
         """
 
-        # Todo: what about mask_on_fly; would it be faster?
+        super().__init__()
+
+        # Todo: what about mask_on_fly? would it be faster?
         def get_mask():
             if split_form == 'even-odd':
                 return self.evenodd(shape, parity)
             elif split_form == 'half-half':
                 return self.halfhalf(shape, parity)
 
-        self.mask = get_mask()  # .to(torch_device)
+        self.register_buffer('mask', get_mask())
         if not keepshape:
-            self.cat_mask = get_mask()  # .to(torch_device)
+            self.register_buffer('cat_mask', get_mask())
         self.shape = shape
         if keepshape:
             self.split = self._sameshape_split

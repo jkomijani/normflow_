@@ -114,9 +114,9 @@ class FFTNet_(Module_):
         self.rfft_axis = -1  # the axis reduced by rfft for redundancy
 
         freetheory = FreeScalar(self.lat_shape)
-        lat_k2 = freetheory.calc_lattice_k2()  # .to(torch_device)
-        self.norm_lat_k2 = lat_k2/torch.max(lat_k2)
-        self.max_lat_k2 = torch.max(lat_k2)
+        lat_k2 = freetheory.calc_lattice_k2()
+        self.register_buffer('norm_lat_k2', lat_k2/torch.max(lat_k2))
+        self.register_buffer('max_lat_k2', torch.max(lat_k2))
 
     def forward(self, x, log0=0):
         """Take `rfftn`, multiply by `weights`, and take `irfftn`."""

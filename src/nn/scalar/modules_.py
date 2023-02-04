@@ -47,7 +47,8 @@ class ScaleNet_(Module_):
         if Module_._propagate_density:
             return self.logw * torch.ones(x_shape)
         else:
-            return (self.logw * np.product(x_shape[1:])) * torch.ones(x_shape[0])
+            logwscaled = self.logw * np.product(x_shape[1:])
+            return logwscaled * torch.ones(x_shape[0], device=self.logw.device)
 
 
 class Tanh_(Module_):

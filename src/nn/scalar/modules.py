@@ -284,7 +284,8 @@ class SplineNet(Module):
 
     def make_spline(self):
         cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=0)
-        to_coord = lambda w: torch.cat((torch.tensor([0]), cumsumsoftmax(w)))
+        zero = torch.tensor([0], device=self.weights_x.device)
+        to_coord = lambda w: torch.cat((zero, cumsumsoftmax(w)))
         to_deriv = lambda d: self.softplus(d) if d is not None else None
 
         knots_x = self.knots_x

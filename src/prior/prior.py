@@ -8,8 +8,10 @@ import torch
 import copy
 import numpy as np
 
+from abc import abstractmethod, ABC
 
-class Prior:
+
+class Prior(ABC):
     """A template class to initiate a prior distribution."""
 
     def __init__(self, dist, seed=None, propagate_density=False):
@@ -40,6 +42,13 @@ class Prior:
     def nvar(self):
         return np.product(self.shape)
 
+    @abstractmethod
+    def to(self, *args, **kwargs):
+        # should a .to(*args, **kwargs) call to all tensors which parametrizes
+        # self.dist to implies that samples drawn from the distribution will
+        # also be created on the same device
+        pass
+
 
 class UniformPrior(Prior):
     """Creates a uniform distribution parameterized by low and high;
@@ -56,6 +65,12 @@ class UniformPrior(Prior):
         dist = torch.distributions.uniform.Uniform(low, high)
         super().__init__(dist, seed, **kwargs)
         self.shape = shape
+
+    def to(self, *args, **kwargs):
+        # moves the distribution parameters to a device, which implies that
+        # samples will also be created on that device
+        self.dist.low = self.dist.low.to(*args, **kwargs)
+        self.dist.high = self.dist.high.to(*args, **kwargs)
 
 
 class NormalPrior(Prior):
@@ -82,8 +97,15 @@ class NormalPrior(Prior):
                 )
         self.blockupdater = BlockUpdater(chopped_prior, block_len)
 
+    def to(self, *args, **kwargs):
+        # moves the distribution parameters to a device, which implies that
+        # samples will also be created on that device
+        self.dist.loc = self.dist.loc.to(*args, **kwargs)
+        self.dist.scale = self.dist.scale.to(*args, **kwargs)
+
 
 class NormalPriorWithOutlier(NormalPrior):
+    # OBSOLETE; CAN BE REMOVED (used for a test)
 
     def __init__(self, outlier_factor=3, outlier_prob=0.05, **kwargs):
         super().__init__(**kwargs)

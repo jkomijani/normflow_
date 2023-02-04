@@ -133,8 +133,8 @@ class SplineTemplate:
 
         # Note that for n knots there are only n-1 segments
         knots_len = knots_x.shape[knots_axis]
-        knot_ind = torch.arange(knots_len)
-        segm_ind = torch.arange(knots_len - 1)
+        knot_ind = torch.arange(knots_len, device=knots_x.device)
+        segm_ind = torch.arange(knots_len - 1, device=knots_x.device)
         select = lambda z, ind: torch.index_select(z, knots_axis, ind)
         diff_select = lambda z, ind: select(z, ind[1:]) - select(z, ind[:-1])
         sum_select = lambda z, ind: select(z, ind[1:]) + select(z, ind[:-1])
@@ -298,8 +298,8 @@ class Pade11Spline(SplineTemplate):
     def smooth_derivatives(knots_x, knots_y, knots_axis, bc_type='natural'):
 
         knots_len = knots_x.shape[knots_axis]
-        knot_ind = torch.arange(knots_len)
-        segm_ind = torch.arange(knots_len - 1)
+        knot_ind = torch.arange(knots_len, device=knots_x.device)
+        segm_ind = torch.arange(knots_len - 1, device=knots_x.device)
         select = lambda z, ind: torch.index_select(z, knots_axis, ind)
         diff_select = lambda z, ind: select(z, ind[1:]) - select(z, ind[:-1])
 
@@ -464,7 +464,7 @@ class AugmentKnots:
         x, y, d, axis = self.knots_x, self.knots_y, self.knots_d, self.knots_axis
         n = x.shape[axis]
 
-        knot_ind = torch.arange(n)
+        knot_ind = torch.arange(n, device=x.device)
         select_0 = lambda z: torch.index_select(z, axis, knot_ind[:1])
         select_1 = lambda z: torch.index_select(z, axis, knot_ind[-1:])
         select = lambda z, ind: torch.index_select(z, axis, ind)

@@ -52,6 +52,17 @@ class Module_(torch.nn.Module):
         Module_._propagate_density = propagate_density
 
 
+def ddp_wrapper(func):
+    def identity(x):
+        return x
+    # for unknown reason, this resolves a problem of in-place modified tensors during .forward() call
+    def wrapper(*args, **kwargs):
+        with torch.autograd.graph.saved_tensors_hooks(pack_hook=identity, unpack_hook=identity):
+            output = func(*args, **kwargs)
+        return output
+    return wrapper
+
+
 # =============================================================================
 class ModuleList_(torch.nn.ModuleList):
     """Like `torch.nn.ModuleList` except for the `forward` and `backward`
@@ -61,7 +72,8 @@ class ModuleList_(torch.nn.ModuleList):
 
     Parameters
     ----------
-    nets_ : instance of Module_ or ModuleList_
+    nets_ : list
+        Items of the list must be instances of Module_ or ModuleList_
     """
 
     _groups = None
@@ -70,11 +82,13 @@ class ModuleList_(torch.nn.ModuleList):
         super().__init__(nets_)
         self.label = label
 
+    @ddp_wrapper
     def forward(self, x, log0=0):
         for net_ in self:
             x, log0 = net_.forward(x, log0)
         return x, log0
 
+    @ddp_wrapper
     def backward(self, x, log0=0):
         for net_ in list(self)[::-1]:  # list() is needed for child classes...
             x, log0 = net_.backward(x, log0)
@@ -143,6 +157,10 @@ class ModuleList_(torch.nn.ModuleList):
     def npar(self):
         count = lambda x: np.product(x)
         return sum([count(p.shape) for p in super().parameters()])
+
+    def to(self, *args, **kwargs):
+        for net_ in self:
+            net_.to(*args, **kwargs)
 
 
 # =============================================================================

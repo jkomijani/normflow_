@@ -28,6 +28,7 @@ import numpy as np
 
 from .mcmc import MCMCSampler, BlockedMCMCSampler
 from .lib.combo import estimate_logz, fmt_val_err
+from .device import ModelDeviceHandler
 
 
 # =============================================================================
@@ -62,6 +63,7 @@ class Model:
         self.trained_dist = self.raw_dist  # temporary solution
         self.mcmc = MCMCSampler(self)
         self.blocked_mcmc = BlockedMCMCSampler(self)
+        self.device_handler = ModelDeviceHandler(self)
 
     def transform(self, x):
         return self.net_(x)[0]
@@ -121,7 +123,6 @@ class RawDistribution:
         return logq
 
 
-
 # =============================================================================
 class Fitter:
     """A class for training a given model.
@@ -143,7 +144,7 @@ class Fitter:
         self.checkpoint_dict = dict(
             display=False,
             print_stride=100,
-            print_extra_func=lambda *args: '',
+            print_extra_func=None,
             save_epochs=[],
             save_fname_func=None
             )
@@ -334,7 +335,11 @@ class Fitter:
                 fmt_val_err(adjusted_logqp_mean, logqp_std, err_digits=2),
                 )
         str_ += f" | ess = {mydict['ess'][-1]:g}"
-        print(str_, self.checkpoint_dict['print_extra_func'](epoch))
+
+        if self.checkpoint_dict['print_extra_func'] is not None:
+            str_ += self.checkpoint_dict['print_extra_func'](epoch)
+
+        print(str_)
 
 
 # =============================================================================

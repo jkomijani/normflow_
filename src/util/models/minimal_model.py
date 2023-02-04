@@ -25,6 +25,7 @@ from normflow.nn import ModuleList_
 from normflow.nn import FFTNet_, DistConvertor_, MeanFieldNet_
 from normflow.action import ScalarPhi4Action
 from normflow.prior import NormalPrior
+from functools import partial
 
 
 # =============================================================================
@@ -32,6 +33,7 @@ def main(*, lat_shape, m_sq, lambd, kappa=1, a=1, eff_mass2=None,
         knots0_len=10, knots1_len=10, knots2_len=10,
         n_epochs=1000, batch_size=128, seed=None,
         sgnbias=False,
+        nranks=1, # number of (gpu) devices to parallelize over
         print_net_=False, net_load_fname=None, net_save_fname=None):
 
     prior = NormalPrior(shape=lat_shape, seed=seed)
@@ -67,6 +69,23 @@ def main(*, lat_shape, m_sq, lambd, kappa=1, a=1, eff_mass2=None,
 
     print("number of model parameters =", model.net_.npar)
 
+    fit_dict = dict(n_epochs=n_epochs, batch_size=batch_size)
+
+    if nranks > 1:
+        model.device_handler.spawnprocesses(fit, nranks, **fit_dict)
+    else:
+        fit(model, **fit_dict)
+
+    print("Estimated infrared mass is", fftnet_.infrared_mass)
+
+    if isinstance(net_save_fname, str):
+        torch.save(model.net_, net_save_fname)
+
+    return model
+
+
+def fit(model, *, n_epochs, batch_size):
+
     SchedulerClass = torch.optim.lr_scheduler.CosineAnnealingLR
     scheduler = lambda optimizer: SchedulerClass(optimizer, n_epochs)
 
@@ -76,20 +95,13 @@ def main(*, lat_shape, m_sq, lambd, kappa=1, a=1, eff_mass2=None,
     checkpoint_dict = dict(print_stride=100, print_extra_func=extra_func)
     hyperparam = dict(lr=0.001, weight_decay=0.)
 
-    model.fit(
+    return model.fit(
             n_epochs=n_epochs,
             batch_size=batch_size,
             scheduler=scheduler,
             hyperparam=hyperparam,
             checkpoint_dict=checkpoint_dict
             )
-
-    print("Estimated infrared mass is", fftnet_.infrared_mass)
-
-    if isinstance(net_save_fname, str):
-        torch.save(model.net_, net_save_fname)
-
-    return model
 
 
 # =============================================================================
@@ -104,6 +116,7 @@ if __name__ == '__main__':
     add("--kappa", dest="kappa", type=float)
     add("--a", dest="a", type=float)
     add("--eff_mass2", dest="eff_mass2", type=float)
+    add("--nranks", dest="nranks", type=int)
     add("--knots0_len", dest="knots0_len", type=int)
     add("--knots1_len", dest="knots1_len", type=int)
     add("--knots2_len", dest="knots2_len", type=int)
