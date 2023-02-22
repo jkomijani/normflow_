@@ -50,7 +50,8 @@ class ConvAct(Module):
 
     def __init__(self, *, in_channels, out_channels, conv_dim,
             hidden_sizes=[], kernel_size=3, acts=['none'],
-            padding_mode='circular', bias=True
+            padding_mode='circular', bias=True,
+            set_param2zero=False
             ):
         super().__init__()
         sizes = [in_channels, *hidden_sizes, out_channels]
@@ -79,8 +80,16 @@ class ConvAct(Module):
                 padding_mode=padding_mode, bias=bias
                 )
 
+        if set_param2zero:
+            self.set_param2zero()
+
     def forward(self, x):
         return self.net(x)
+
+    def set_param2zero(self):
+        for net in self.net:
+            for param in net.parameters():
+                torch.nn.init.zeros_(param)
 
     def transfer(self, scale_factor=1, **extra):
         """Returns a copy of the current module if scale_factor is 1.
@@ -254,7 +263,10 @@ class SplineNet(Module):
         self.spline_kwargs = spline_kwargs
 
         self.softmax = torch.nn.Softmax(dim=0)
-        self.softplus = torch.nn.Softplus()
+        self.softplus = torch.nn.Softplus(beta=np.log(2))
+        # we set the beta of Softplus to log(2) so that self.softplust(0)
+        # returns 1. With this setting it would be easy to set the derivatives
+        # to 1 (with zero inputs).
 
         # init = lambda n: self.softmax((2*torch.rand(n) - 1) / n**0.5)
         # initial values set to values corresponding to the identity function

@@ -27,7 +27,7 @@ import numpy as np
 
 from .modules import SplineNet
 from .._core import Module_
-from ...lib.combo import outer_arange
+from ...lib.indexing import outer_arange
 
 
 irfft, rfft = torch.fft.irfftn, torch.fft.rfftn

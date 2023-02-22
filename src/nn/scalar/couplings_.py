@@ -174,7 +174,10 @@ class RQSplineBlock_(CouplingBlock_):
         self.extrap = extrap
 
         self.softmax = torch.nn.Softmax(dim=self.channels_axis)
-        self.softplus = torch.nn.Softplus()
+        self.softplus = torch.nn.Softplus(beta=np.log(2))
+        # we set the beta of Softplus to log(2) so that self.softplust(0)
+        # returns 1. With this setting it would be easy to set the derivatives
+        # to 1 (with zero inputs).
 
     def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))

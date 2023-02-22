@@ -279,10 +279,6 @@ class Fitter:
         return (logq - logp).var()
 
     @staticmethod
-    def calc_kl_mean_var(logq, logp):
-        return (logq - logp).mean()**2 + (logq - logp).var()
-
-    @staticmethod
     def calc_direct_kl_mean(logq, logp):
         logpq = logp - logq
         p_by_q = torch.exp(logpq - logpq.mean())

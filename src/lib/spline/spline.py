@@ -397,6 +397,11 @@ class AugmentKnots:
         self.knots_y = knots_y
         self.knots_d = knots_d
         self.knots_axis = knots_axis
+        self.ndim_dict = dict(
+                x=self.knots_x.ndim,
+                y=self.knots_y.ndim,
+                d=self.knots_d.ndim
+                )
 
     def __call__(self, left=None, right=None):
         """
@@ -418,8 +423,27 @@ class AugmentKnots:
 
         self.left = left
         self.right = right
+        self._makesure_unsqueezed()
         self.perform_bc(left, right)
+        self._makesure_squeezed()
         return self.knots_x, self.knots_y, self.knots_d
+
+    def _makesure_unsqueezed(self):
+        reshape = [1 for _ in range(self.knots_axis)] + [-1]
+        if self.ndim_dict['x'] == 1:
+            self.knots_x = self.knots_x.reshape(*reshape)
+        if self.ndim_dict['y'] == 1:
+            self.knots_y = self.knots_y.reshape(*reshape)
+        if self.ndim_dict['d'] == 1:
+            self.knots_d = self.knots_d.reshape(*reshape)
+
+    def _makesure_squeezed(self):
+        if self.ndim_dict['x'] == 1:
+            self.knots_x = self.knots_x.reshape(-1)
+        if self.ndim_dict['y'] == 1:
+            self.knots_y = self.knots_y.reshape(-1)
+        if self.ndim_dict['d'] == 1:
+            self.knots_d = self.knots_d.reshape(-1)
 
     def perform_bc(self, left, right):
 
