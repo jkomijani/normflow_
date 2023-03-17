@@ -31,7 +31,8 @@ class NetAssembler:
         return ModuleList_(self.nets_)
 
     def conv(self, *, hidden_sizes, acts, in_channels=1, out_channels=2,
-            kernel_size=3, conv_dim=2, padding_mode='circular', bias=True
+            kernel_size=3, conv_dim=2, padding_mode='circular', bias=True,
+            set_param2zero=False
             ):
         kwargs = dict(
                 in_channels=in_channels,
@@ -41,7 +42,8 @@ class NetAssembler:
                 kernel_size=kernel_size,
                 conv_dim=conv_dim,
                 acts=acts,
-                bias=bias
+                bias=bias,
+                set_param2zero=set_param2zero
                 )
         return ConvAct(**kwargs)
 

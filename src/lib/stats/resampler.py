@@ -42,19 +42,23 @@ class Resampler:
         binned_samples = samples[:(l_b * binsize)].reshape(l_b, binsize, -1)
 
         if type(samples) == torch.Tensor:
-            arange, randint = torch.arange, torch.randint
+            arange, randint, randperm = torch.arange, torch.randint, torch.randperm
         else:
-            arange, randint = np.arange, np.random.randint
+            arange, randint, randperm = np.arange, np.random.randint, np.random.permutation
 
-        if self.method == 'jackknife':
-            n_resamples = l_b
-            get_indices = lambda i: arange(l_b)[arange(l_b) != i]
-            resample_shape = ((l_b - 1) * binsize, *samples.shape[1:])
-        else:
-            if batch_size is None:
-                batch_size = l_b  # useful if method is not 'jackknife'
-            get_indices = lambda i: randint(l_b, size=(batch_size,))
-            resample_shape = (l_b * binsize, *samples.shape[1:])
+        match self.method:
+            case 'jackknife':
+                n_resamples = l_b
+                get_indices = lambda i: arange(l_b)[arange(l_b) != i]
+                resample_shape = ((l_b - 1) * binsize, *samples.shape[1:])
+            case 'bootstrap':
+                if batch_size is None:
+                    batch_size = l_b  # useful if method is not 'jackknife'
+                get_indices = lambda i: randint(l_b, size=(batch_size,))
+                resample_shape = (l_b * binsize, *samples.shape[1:])
+            case 'shuffling':
+                get_indices = lambda i: randperm(l_b)
+                resample_shape = (l_b * binsize, *samples.shape[1:])
 
         for i in range(n_resamples):
             yield binned_samples[get_indices(i)].reshape(*resample_shape)

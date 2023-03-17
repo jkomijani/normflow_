@@ -56,6 +56,10 @@ class PlanarGaugeModule_(MatrixModule_):
                 )
         return x_mu, logJ
 
+    def _hack(self, x_mu, x_nu, log0=0):
+        plaq_0 = self.plaq_handle.calc_zpmasked_open_plaq(x_mu, x_nu, self.zpmask)
+        return super()._hack(plaq_0, log0)
+
     def transfer(self, **kwargs):
         return self.__class__(
                 self.net_.transfer(**kwargs),

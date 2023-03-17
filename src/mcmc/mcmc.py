@@ -7,8 +7,10 @@ import copy
 
 from normflow import torch_device
 
-from ..lib.combo import seize, estimate_logz, fmt_val_err
+from ..lib.combo import estimate_logz, fmt_val_err
 from ..lib.stats.resampler import Resampler
+
+seize = lambda var: var.detach().cpu().numpy()
 
 
 # =============================================================================
@@ -25,7 +27,11 @@ class MCMCSampler:
         return self.sample_(*args, **kwargs)[0]
 
     @torch.no_grad()
-    def sample_(self, batch_size=1, bookkeeping=False):
+    def sample_(self, **kwargs):
+        return self.sample_(**kwargs)[:2]
+
+    @torch.no_grad()
+    def sample__(self, batch_size=1, bookkeeping=False):
         """Return a batch of Monte Carlo Markov Chain samples generated using
         independence Metropolis method.
         Acceptances/rejections occur proportionally to how well/poorly
@@ -35,7 +41,7 @@ class MCMCSampler:
             1) Drawing raw samples as proposed samples
             2) Apply Metropolis accept/reject to the proposed samples
         """
-        y, logq, logp = self._model.raw_dist.sample_(batch_size)
+        y, logq, logp = self._model.posterior.sample__(batch_size=batch_size)
 
         if bookkeeping:
             self.history.bookkeeping(raw_logq=logq, raw_logp=logp)
@@ -89,22 +95,31 @@ class MCMCSampler:
         for i in range(n_samples):
             ind = i % batch_size  # the index of the batch
             if ind == 0:
-                y, logq, logp = self.sample_(batch_size)
+                y, logq, logp = self.sample__(batch_size)
             yield unsqz(y[ind], logq[ind], logp[ind])
 
     @torch.no_grad()
-    def calc_accept_rate(self, batch_size=1024, n_resamples=10, asstr=False):
+    def calc_accept_rate(self, n_samples=1024, batch_size=1024, asstr=False,
+            n_resamples=10, method='shuffling'):
         """Calculate acceptance rate from logqp = log(q) - log(p)"""
 
         # First, draw (raw) samples
-        _, logq, logp = self._model.raw_dist.sample_(batch_size)
-        logqp = seize(logq - logp)
+        if batch_size > n_samples:
+            batch_size = n_samples
+        n_batches = np.ceil(n_samples/batch_size).astype(int)
+        logqp = np.zeros(n_batches * batch_size)
+        for k in range(n_batches):
+            _, logq, logp = self._model.posterior.sample__(batch_size=batch_size)
+            logqp[k*batch_size: (k+1)*batch_size] = seize(logq - logp)
 
-        # Now calculate the mean and std (by bootstraping) of acceptance rate
+        # Now calculate the mean and std of acceptance rate (by shuffling)
         def calc_rate(logqp):
             return np.mean(Metropolis.calc_accept_status(logqp))
 
-        mean, std = Resampler().eval(logqp, fn=calc_rate, n_resamples=n_resamples)
+        # mean, std = Resampler(method='shuffling').eval(
+        mean, std = Resampler(method=method).eval(
+                logqp, fn=calc_rate, n_resamples=n_resamples
+                )
 
         if asstr:
             return fmt_val_err(mean, std, err_digits=1)
@@ -122,10 +137,14 @@ class BlockedMCMCSampler(MCMCSampler):
 
     @torch.no_grad()
     def sample(self, *args, **kwargs):
-        return self.sample_(*args, **kwargs)[0]
+        return self.sample__(*args, **kwargs)[0]
 
     @torch.no_grad()
-    def sample_(self, batch_size=1, n_blocks=1, bookkeeping=False):
+    def sample_(self, *args, **kwargs):
+        return self.sample__(*args, **kwargs)[:2]
+
+    @torch.no_grad()
+    def sample__(self, batch_size=1, n_blocks=1, bookkeeping=False):
         """Return a batch of mcmc samples."""
 
         prior = self._model.prior

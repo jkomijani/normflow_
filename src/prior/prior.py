@@ -22,6 +22,10 @@ class Prior(ABC):
     def sample(self, batch_size=1):
         return self.dist.sample((batch_size,))
 
+    def sample_(self, batch_size=1):
+        x = self.dist.sample((batch_size,))
+        return x, self.log_prob(x)
+
     def log_prob(self, x):
         log_prob_density = self.dist.log_prob(x)
         if self._propagate_density:

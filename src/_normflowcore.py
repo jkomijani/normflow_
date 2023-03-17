@@ -59,8 +59,8 @@ class Model:
 
         self.fit = Fitter(self)
 
-        self.raw_dist = RawDistribution(self)  # todo: raw_dist -> trained_dist
-        self.trained_dist = self.raw_dist  # temporary solution
+        self.posterior = Posterior(self)
+        self.raw_dist = self.posterior  # alias; todo: remove later
         self.mcmc = MCMCSampler(self)
         self.blocked_mcmc = BlockedMCMCSampler(self)
         self.device_handler = ModelDeviceHandler(self)
@@ -75,7 +75,7 @@ class Model:
         self.action._set_propagate_density(propagate_density)
 
 
-class RawDistribution:
+class Posterior:
     """A class for drawing samples from given model. Note that the samples
     are drawn directly from the model without performing any accept/reject
     filtering.
@@ -89,9 +89,8 @@ class RawDistribution:
         self._model = model
 
     @torch.no_grad()
-    def sample(self, batch_size=1):
-        """Return `batch_size` samples."""
-        return self._model.net_(self._model.prior.sample(batch_size))[0]
+    def sample(self, batch_size=1, **kwargs):
+        return self.sample_(batch_size, **kwargs)[0]
 
     @torch.no_grad()
     def sample_(self, batch_size=1, preprocess_func=None):
@@ -106,15 +105,20 @@ class RawDistribution:
         preprocess_func: None or a function
             Introduced to preprocess the prior sample if needed
         """
-        x = self._model.prior.sample(batch_size)
+        x, logr = self._model.prior.sample_(batch_size)
         if preprocess_func is not None:
-            x = preprocess_func(x)
+            x, logr = preprocess_func(x, logr)
         y, logJ = self._model.net_(x)
-        logr = self._model.prior.log_prob(x)
         logq = logr - logJ
+        return y, logq
+
+    @torch.no_grad()
+    def sample__(self, **kwargs):
+        y, logq = self.sample_(**kwargs)
         logp = -self._model.action(y)  # logp is log(p * z)
         return y, logq, logp
 
+    @torch.no_grad()
     def log_prob(self, y):
         """Returns log probability of the samples."""
         x, minus_logJ = self._model.net_.backward(y)
@@ -243,8 +247,7 @@ class Fitter:
         batch_size = self.train_metadata['batch_size']
         n_hits = self.train_metadata['n_hits']
 
-        x = prior.sample(batch_size)
-        logr = prior.log_prob(x)
+        x, logr = prior.sample_(batch_size)
         for _ in range(n_hits):
             y, logJ = net_(x)
             logq = logr - logJ
