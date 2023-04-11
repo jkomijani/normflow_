@@ -23,12 +23,12 @@ class MCMCSampler:
         self._ref = dict(sample=None, logq=None, logp=None, logqp=None)
 
     @torch.no_grad()
-    def sample(self, *args, **kwargs):
-        return self.sample_(*args, **kwargs)[0]
+    def sample(self, batch_size=1, **kwargs):
+        return self.sample__(batch_size=batch_size, **kwargs)[0]
 
     @torch.no_grad()
-    def sample_(self, **kwargs):
-        return self.sample_(**kwargs)[:2]
+    def sample_(self, batch_size=1, **kwargs):
+        return self.sample__(batch_size=batch_size, **kwargs)[:2]
 
     @torch.no_grad()
     def sample__(self, batch_size=1, bookkeeping=False):
@@ -136,12 +136,12 @@ class BlockedMCMCSampler(MCMCSampler):
     """Perform Markov chain Monte Carlo simulation with blocking."""
 
     @torch.no_grad()
-    def sample(self, *args, **kwargs):
-        return self.sample__(*args, **kwargs)[0]
+    def sample(self, batch_size=1, **kwargs):
+        return self.sample__(batch_size=batch_size, **kwargs)[0]
 
     @torch.no_grad()
-    def sample_(self, *args, **kwargs):
-        return self.sample__(*args, **kwargs)[:2]
+    def sample_(self, batch_size=1, **kwargs):
+        return self.sample__(batch_size=batch_size, **kwargs)[:2]
 
     @torch.no_grad()
     def sample__(self, batch_size=1, n_blocks=1, bookkeeping=False):

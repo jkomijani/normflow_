@@ -90,7 +90,7 @@ class Posterior:
 
     @torch.no_grad()
     def sample(self, batch_size=1, **kwargs):
-        return self.sample_(batch_size, **kwargs)[0]
+        return self.sample_(batch_size=batch_size, **kwargs)[0]
 
     @torch.no_grad()
     def sample_(self, batch_size=1, preprocess_func=None):
@@ -113,8 +113,8 @@ class Posterior:
         return y, logq
 
     @torch.no_grad()
-    def sample__(self, **kwargs):
-        y, logq = self.sample_(**kwargs)
+    def sample__(self, batch_size=1, **kwargs):
+        y, logq = self.sample_(batch_size=batch_size, **kwargs)
         logp = -self._model.action(y)  # logp is log(p * z)
         return y, logq, logp
 
