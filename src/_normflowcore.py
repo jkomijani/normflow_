@@ -255,7 +255,10 @@ class Fitter:
             loss = self.loss_fn(logq, logp)
             self.optimizer.zero_grad()  # clears old gradients from last steps
             loss.backward()
-            self.optimizer.step()
+            if torch.isnan(loss):
+                print("OOPS: loss is divergent -> no *step* is taken.")
+            else:
+                self.optimizer.step()
             self.train_history['loss'].append(loss.item())
 
         return loss, logq - logp
@@ -299,8 +302,9 @@ class Fitter:
         return -logz
 
     @staticmethod
-    def calc_ess(logqp):
+    def calc_ess(logq, logp):
         """ESS: effective sample size"""
+        logqp = logq - logp
         log_ess = 2*torch.logsumexp(-logqp, dim=0) - torch.logsumexp(-2*logqp, dim=0)
         ess = torch.exp(log_ess) / len(logqp)  # normalized
         return ess
@@ -309,7 +313,7 @@ class Fitter:
     def _append_to_train_history(self, logqp):
         # logqp = logq - logp;  more precisely, logqp = log(q) - log(p * z)
         logz = estimate_logz(logqp, method='jackknife')  # returns (mean, std)
-        ess = self.calc_ess(logqp)
+        ess = self.calc_ess(logqp, 0)
         logqp = (logqp.mean().item(), logqp.std().item())
         self.train_history['logqp'].append(logqp)
         self.train_history['logz'].append(logz)

@@ -35,6 +35,6 @@ def fmt_val_err(value, error, err_digits=1):
         if digits < 0:
             digits = 0
         str_ = "{0:.{2}f}({1:.0f})".format(value, error * 10**digits, digits)
-    except ValueError:
+    except:
         str_ = "{0}+-{1}".format(value, error)
     return str_

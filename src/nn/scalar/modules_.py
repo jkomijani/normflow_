@@ -77,7 +77,6 @@ class Expit_(Module_):
 
     def forward(self, x, log0=0):
         y = 1/(1 + torch.exp(-x))
-        sum_dim = tuple(range(1, len(x.size())))
         logJ = self.sum_density(-x + 2 * torch.log(y))
         return y, log0 + logJ
 
@@ -106,15 +105,21 @@ class SplineNet_(SplineNet, Module_):
 
     def forward(self, x, log0=0):
         spline = self.make_spline()
-        fx, g = spline(x.ravel(), grad=True)  # g is gradient of the spline @ x
-        fx, g = fx.reshape(x.shape), g.reshape(x.shape)
+        if len(self.spline_shape) > 0:
+            fx, g = spline(x, grad=True)  # g is gradient of the spline @ x
+        else:
+            fx, g = spline(x.ravel(), grad=True)  # g is gradient of spline @ x
+            fx, g = fx.reshape(x.shape), g.reshape(x.shape)
         logJ = self.sum_density(torch.log(g))
         return fx, log0 + logJ
 
     def backward(self, x, log0=0):
         spline = self.make_spline()
-        fx, g = spline.backward(x.ravel(), grad=True)  # g is gradient @ x
-        fx, g = fx.reshape(x.shape), g.reshape(x.shape)
+        if len(self.spline_shape) > 0:
+            fx, g = spline.backward(x, grad=True)  # g is gradient @ x
+        else:
+            fx, g = spline.backward(x.ravel(), grad=True)  # g is gradient @ x
+            fx, g = fx.reshape(x.shape), g.reshape(x.shape)
         logJ = self.sum_density(torch.log(g))
         return fx, log0 + logJ
 

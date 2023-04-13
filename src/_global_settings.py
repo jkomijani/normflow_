@@ -7,8 +7,10 @@ import numpy as np
 
 if torch.cuda.is_available():
     torch_device = 'cuda'
-    float_dtype = torch.float32  # np.float32, single
-    float_tensortype = torch.cuda.FloatTensor
+    # float_dtype = torch.float32  # np.float32, single
+    # float_tensortype = torch.cuda.FloatTensor
+    float_dtype = torch.float64  # np.float64, double
+    float_tensortype = torch.cuda.DoubleTensor
 else:
     torch_device = 'cpu'
     float_dtype = torch.float64  # np.float64, double

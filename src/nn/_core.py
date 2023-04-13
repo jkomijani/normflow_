@@ -186,13 +186,13 @@ class MultiChannelModule_(torch.nn.ModuleList):
         return self._map(x, [net_.backward for net_ in self], log0=log0)
 
     def _map(self, x, f_, log0=0):
-        x = x.split(1, dim=self.channels_axis)
+        x = x.unbind(dim=self.channels_axis)
 
         if len(x) != len(f_):
             raise Exception("mismatch in channels of input & network.""")
 
         out = [fj_(xj) for fj_, xj in zip(f_, x)]
-        x = torch.cat([o[0] for o in out], dim=self.channels_axis)
+        x = torch.stack([o[0] for o in out], dim=self.channels_axis)
         logJ = sum([o[1] for o in out])
 
         return x, log0 + logJ

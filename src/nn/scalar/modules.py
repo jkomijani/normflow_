@@ -225,10 +225,12 @@ class MultiLinearAct(Module):
 class SplineNet(Module):
 
     def __init__(self, knots_len, xlim=(0, 1), ylim=(0, 1),
-            knots_x=None, knots_y=None,
+            knots_x=None, knots_y=None, knots_d=None,
+            spline_shape=[], knots_axis=-1,
             smooth=False, Spline=RQSpline, label='spline', **spline_kwargs
             ):
-        """Returns a neural network for spline interpolation/extrapolation.
+        """
+        Return a neural network for spline interpolation/extrapolation.
         The input `knots_len` specifies the number of knots of the spline.
         In general, the first knot is always at (xlim[0], ylim[0]) and the last
         knot is always at (xlim[1], ylim[1]) and the coordintes of other knots
@@ -249,15 +251,41 @@ class SplineNet(Module):
 
         Can be used as a probability distribution convertor for variables with
         nonzero probability in [0, 1].
+
+        Parameters
+        ----------
+        knots_x : int
+             number of knots of the spline.
+        xlim : array-like
+             the min and max values for `x` of the knots.
+        ylim : tuple
+             the min and max values for `y` of the knots.
+        .
+        .
+        .
+
+        spline_shape : array-like
+            specifies number of splines organized as a tensor
+            (default is [], indicating there is only one spline).
+
+        knots_axis : int
+            relevant only if spline_shape is not []
+            (default value is -1)
         """
         super().__init__(label=label)
 
-        if knots_len < 2:
+        # knots_len and spline_shape are relevant only if rel_flag is True
+        rel_flag = (knots_x is None) or (knots_y is None) or (knots_d is None)
+
+        if rel_flag and knots_len < 2:
             raise Exception("Oops: knots_len can't be less than 2 @ SplineNet")
 
         self.knots_len = knots_len
         self.knots_x = knots_x
         self.knots_y = knots_y
+        self.knots_d = knots_d
+        self.spline_shape = spline_shape
+        self.knots_axis = knots_axis
 
         self.Spline = Spline
         self.spline_kwargs = spline_kwargs
@@ -268,36 +296,42 @@ class SplineNet(Module):
         # returns 1. With this setting it would be easy to set the derivatives
         # to 1 (with zero inputs).
 
-        # init = lambda n: self.softmax((2*torch.rand(n) - 1) / n**0.5)
-        # initial values set to values corresponding to the identity function
-        init1 = lambda n: torch.zeros(n)
-        init2 = lambda n: torch.log(torch.exp(torch.ones(n)) - 1)
+        init = lambda n: torch.zeros(*spline_shape, n)
 
         if knots_x is None:
             self.xlim, self.xwidth = xlim, xlim[1] - xlim[0]
-            self.weights_x = torch.nn.Parameter(init1(knots_len - 1))
+            self.weights_x = torch.nn.Parameter(init(knots_len - 1))
+            self.device = self.weights_x.device
+        else:
+            self.device = self.knots_x.device
 
         if knots_y is None:
             self.ylim, self.ywidth = ylim, ylim[1] - ylim[0]
-            self.weights_y = torch.nn.Parameter(init1(knots_len - 1))
+            self.weights_y = torch.nn.Parameter(init(knots_len - 1))
 
-        if smooth:
-            self.weights_d = None
-        else:
-            self.weights_d = torch.nn.Parameter(init2(knots_len))
+        if knots_d is None:
+            self.weights_d = None if smooth else torch.nn.Parameter(init(knots_len))
 
     def forward(self, x):
         spline = self.make_spline()
-        return spline(x.ravel()).reshape(x.shape)
+        if len(self.spline_shape) > 0:
+            return spline(x)
+        else:
+            return spline(x.ravel()).reshape(x.shape)
 
     def backward(self, x):
         spline = self.make_spline()
-        return spline.backward(x.ravel()).reshape(x.shape)
+        if len(self.spline_shape) > 0:
+            return spline.backward(x)
+        else:
+            return spline.backward(x.ravel()).reshape(x.shape)
 
     def make_spline(self):
-        cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=0)
-        zero = torch.tensor([0], device=self.weights_x.device)
-        to_coord = lambda w: torch.cat((zero, cumsumsoftmax(w)))
+        dim = self.knots_axis
+        zero_shape = (*self.spline_shape, 1)
+        zero = torch.zeros(zero_shape, device=self.device)
+        cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=dim)
+        to_coord = lambda w: torch.cat((zero, cumsumsoftmax(w)), dim=dim)
         to_deriv = lambda d: self.softplus(d) if d is not None else None
 
         knots_x = self.knots_x
@@ -308,9 +342,11 @@ class SplineNet(Module):
         if knots_y is None:
             knots_y = to_coord(self.weights_y) * self.ywidth + self.ylim[0]
 
-        mydict = {'knots_x': knots_x,
-                  'knots_y': knots_y,
-                  'knots_d': to_deriv(self.weights_d)}
+        knots_d = self.knots_d
+        if knots_d is None:
+            knots_d = to_deriv(self.weights_d)
+
+        mydict = {'knots_x': knots_x, 'knots_y': knots_y, 'knots_d': knots_d}
 
         return self.Spline(**mydict, **self.spline_kwargs)
 
