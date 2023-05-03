@@ -134,7 +134,10 @@ class PlaqHandle:
 
     @staticmethod
     def update_link_rule(a, b, c):
-        return mul(mul(a, b.adjoint()), c)
+        if b is None:
+            return mul(a, c)
+        else:
+             return mul(mul(a, b.adjoint()), c)
 
 
 class LongPlaqHandle(PlaqHandle):
@@ -144,10 +147,10 @@ class LongPlaqHandle(PlaqHandle):
 
     def push_plaq2links(self, *, new_plaq, old_plaq, **kwargs):
         return super().push_plaq2links(
-                                       new_plaq=new_plaq[:, 0],
-                                       old_plaq=old_plaq[:, 0],
-                                       **kwargs
-                                       )
+                            new_plaq=new_plaq[:, 0],
+                            old_plaq=None if old_plaq is None else old_plaq[:, 0],
+                            **kwargs
+                            )
 
 
 class U1PlaqHandle(PlaqHandle):
@@ -163,7 +166,10 @@ class U1PlaqHandle(PlaqHandle):
 
     @staticmethod
     def update_link_rule(a, b, c):
-        return a * b.conj() * c
+        if b is None:
+            return a * c
+        else:
+            return a * b.conj() * c
 
 
 class U1LongPlaqHandle(U1PlaqHandle, LongPlaqHandle):

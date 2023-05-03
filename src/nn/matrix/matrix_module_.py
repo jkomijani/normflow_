@@ -25,13 +25,13 @@ class MatrixModule_(Module_):
         self.net_ = net_
         self.matrix_handle = matrix_handle
 
-    def forward(self, x, log0=0):
-        return self._kernel(self.net_.forward, x=x, log0=log0)
+    def forward(self, x, log0=0, reduce_=False):
+        return self._kernel(self.net_.forward, x=x, log0=log0, reduce_=reduce_)
 
-    def backward(self, x, log0=0):
-        return self._kernel(self.net_.backward, x=x, log0=log0)
+    def backward(self, x, log0=0, reduce_=False):
+        return self._kernel(self.net_.backward, x=x, log0=log0, reduce_=reduce_)
 
-    def _kernel(self, net_method_, *, x, log0=0):
+    def _kernel(self, net_method_, *, x, log0=0, reduce_=False):
         """Return the transformed x and its Jacobian.
 
         Here are the steps:
@@ -44,12 +44,12 @@ class MatrixModule_(Module_):
         param = torch.movedim(param, -1, 1)  # move channel axis from -1 to 1
         param, logJ_par2par = net_method_(param)
         param = torch.movedim(param, 1, -1)  # return channel axis to -1
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param)
+        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
 
         logJ = logJ_mat2par + logJ_par2par + logJ_par2mat
         return x, log0 + logJ
 
-    def _hack(self, x, log0=0):
+    def _hack(self, x, log0=0, reduce_=False):
         """Similar to the forward method, but returns intermediate parts too."""
         param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
         stack = [(param, logJ_mat2par)]
@@ -59,7 +59,7 @@ class MatrixModule_(Module_):
         param = torch.movedim(param, 1, -1)  # return channel axis to -1
         stack.append((param, logJ_par2par))
 
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param)
+        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
         stack.append((x, logJ_par2mat))
         return stack
 

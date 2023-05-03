@@ -42,7 +42,8 @@ class PlanarGaugeModule_(MatrixModule_):
 
     def forward(self, x_mu, x_nu, log0=0):
         plaq_0 = self.plaq_handle.calc_zpmasked_open_plaq(x_mu, x_nu, self.zpmask)
-        plaq_1, logJ = super().forward(plaq_0, log0)
+        plaq_1, logJ = super().forward(plaq_0, log0, reduce_=True)
+        plaq_0 = None  # because reduce_ is set to True above
         x_mu = self.plaq_handle.push_plaq2links(
                 new_plaq=plaq_1, old_plaq=plaq_0, links=x_mu, zpmask=self.zpmask
                 )
@@ -50,7 +51,8 @@ class PlanarGaugeModule_(MatrixModule_):
 
     def backward(self, x_mu, x_nu, log0=0):
         plaq_0 = self.plaq_handle.calc_zpmasked_open_plaq(x_mu, x_nu, self.zpmask)
-        plaq_1, logJ = super().backward(plaq_0, log0)
+        plaq_1, logJ = super().backward(plaq_0, log0, reduce_=True)
+        plaq_0 = None  # because reduce_ is set to True above
         x_mu = self.plaq_handle.push_plaq2links(
                 new_plaq=plaq_1, old_plaq=plaq_0, links=x_mu, zpmask=self.zpmask
                 )

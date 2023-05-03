@@ -171,9 +171,11 @@ class MultiChannelModule_(torch.nn.ModuleList):
     channels.
     """
 
-    def __init__(self, nets_, label=None, channels_axis=1):
+    def __init__(self, nets_,
+            label=None, channels_axis=1, keep_channels_axis=True):
         super().__init__(nets_)
         self.channels_axis = channels_axis
+        self.keep_channels_axis = keep_channels_axis
         self.label = label
 
     def __call__(self, *args, **kwargs):
@@ -186,13 +188,19 @@ class MultiChannelModule_(torch.nn.ModuleList):
         return self._map(x, [net_.backward for net_ in self], log0=log0)
 
     def _map(self, x, f_, log0=0):
-        x = x.unbind(dim=self.channels_axis)
+        if self.keep_channels_axis:
+            x = x.split(1, dim=self.channels_axis)
+        else:
+            x = x.unbind(dim=self.channels_axis)
 
         if len(x) != len(f_):
             raise Exception("mismatch in channels of input & network.""")
 
         out = [fj_(xj) for fj_, xj in zip(f_, x)]
-        x = torch.stack([o[0] for o in out], dim=self.channels_axis)
+        if self.keep_channels_axis:
+            x = torch.cat([o[0] for o in out], dim=self.channels_axis)
+        else:
+            x = torch.stack([o[0] for o in out], dim=self.channels_axis)
         logJ = sum([o[1] for o in out])
 
         return x, log0 + logJ

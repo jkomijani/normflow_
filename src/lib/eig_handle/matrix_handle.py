@@ -33,29 +33,36 @@ class MatrixParametrizer:
         matrices to integrals over corresponding spectral and modal matrices.
         The inverse of Jacobian is equal to the volume of conjugacy class.
         """
-        eig, self.modal_matrix = torch.linalg.eig(matrix)
-        phase = torch.angle(eig)  # in (-pi, pi]
+        eig, self.modal_matrix = eig_sun(matrix)  # torch.linalg.eig(matrix)
+        self.phase = torch.angle(eig)  # in (-pi, pi]
+        # we save phase because it can be useful when self.param2matrix_ is
+        # called with the `reduce_` option set to True
 
         # Note: when |eig| = 1, logJ of eig to phase conversion is zero;
         # thus, we only need to take care of Jacobian of spectral decomposition:
         # *inverse* of Jacobian equals the volume of conjugacy class
-        logJ = -sum_density(self.calc_log_conjugacy_vol(phase))  # up to const. addit. term
+        logJ = -sum_density(self.calc_log_conjugacy_vol(eig))  # up to a const.
 
-        return phase, logJ
+        return self.phase, logJ
 
-    def phase2matrix_(self, phase):
+    def phase2matrix_(self, phase, reduce_=False):
         """Inverse of `self.matrix2phase_`.
 
         Return the matrix corresponding to `phase` and logJ of transformation.
+
+        For the sake of frugal computing, the `reduce_` option is introduced
+        such that if True, this method returns `M * M_old^\dagger`,
+        where `M_old` is the matrix constructed with self.sorted_phase.
         """
-        spectral = torch.diag_embed(exp1j(phase), dim1=-2, dim2=-1)
+        eig = exp1j(phase)
         modal = self.modal_matrix
-        matrix = mul(modal, mul(spectral, modal.adjoint()))
+        eig_prime = eig if not reduce_ else eig * exp1j(-self.phase)
+        matrix = mul(modal, eig_prime.unsqueeze(-1) * modal.adjoint())
 
         # Note: when |eig| = 1, logJ of eig to phase conversion is zero;
         # thus, we only need to take care of Jacobian of spectral decomposition:
         # Jacobian equals the volume of conjugacy class
-        logJ = sum_density(self.calc_log_conjugacy_vol(phase))  # up to const. addit. term
+        logJ = sum_density(self.calc_log_conjugacy_vol(eig))  # up to a const.
 
         return matrix, logJ
 
@@ -72,21 +79,20 @@ class MatrixParametrizer:
         return param, logJ_m2f + logJ_f2p
 
     def param2matrix_(self, param, reduce_=False):
-        """Like phase2matrix_ except that the input is a a parametrization of
+        """Like phase2matrix_ except that the input is a parametrization of
         phases.
 
         For the sake of frugal computing, the `reduce_` option is introduced
         such that if True, this method returns `M * M_old^\dagger`,
         where `M_old` is the matrix constructed with self.sorted_phase.
         """
-        phase, logJ_p2f = self.param2phase_(param, reduce_=reduce_)
-        matrix, logJ_p2m = self.phase2matrix_(phase)
+        phase, logJ_p2f = self.param2phase_(param)
+        matrix, logJ_p2m = self.phase2matrix_(phase, reduce_=reduce_)
         return matrix, logJ_p2f + logJ_p2m
 
     @staticmethod
-    def calc_log_conjugacy_vol(phase):
+    def calc_log_conjugacy_vol(eig):
         """Return log of conjugacy volume up to a constant additive term."""
-        eig = exp1j(phase)
         sumlogabs2 = lambda x: 2 * torch.sum(torch.log(torch.abs(x)), dim=-1)
         log_vol = torch.zeros(eig.shape[:-1])
         for k in range(eig.shape[-1] - 1):
@@ -94,9 +100,8 @@ class MatrixParametrizer:
         return log_vol.unsqueeze(-1)  # unsqueeze to keep dimensions the same
 
     @staticmethod
-    def calc_conjugacy_vol(phase):
+    def calc_conjugacy_vol(eig):
         """Return log of conjugacy volume up to a constant additive term."""
-        eig = exp1j(phase)
         prodabs2 = lambda x: torch.prod(torch.abs(x)**2, dim=-1)
         vol = torch.ones(eig.shape[:-1])
         for k in range(eig.shape[-1] - 1):
@@ -109,13 +114,11 @@ class SUnMatrixParametrizer(MatrixParametrizer):
 
     def phase2param_(self, phase):
         self.order = ModalOrder(self.modal_matrix)  # see order.sorted_ind
-        self.sorted_phase = self.order.sort(phase)
-        return self.sortedphase2param_(self.sorted_phase)
+        sorted_phase = self.order.sort(phase)
+        return self.sortedphase2param_(sorted_phase)
 
-    def param2phase_(self, param, reduce_=False):
+    def param2phase_(self, param):
         phase, logJ = self.param2sortedphase_(param)
-        if reduce_:
-            phase -= self.sorted_phase
         phase = self.order.revert(phase)  # revert the "sort" operation
         return phase, logJ
 
@@ -140,8 +143,6 @@ class SU2MatrixParametrizer(MatrixParametrizer):
 
     def param2phase_(self, param, reduce_=False):
         phase, logJ = self.param2sortedphase_(param)
-        if reduce_:
-            phase -= self.order.sorted_val
         phase = self.order.revert(phase)  # revert the "sort" operation
         return phase, logJ
 
@@ -167,8 +168,6 @@ class SU3MatrixParametrizer(MatrixParametrizer):
 
     def param2phase_(self, param, reduce_=False):
         phase, logJ = self.param2sortedphase_(param)
-        if reduce_:
-            phase -= self.order.sorted_val
         phase = self.order.revert(phase)  # revert the "sort" operation
         return phase, logJ
 
@@ -226,3 +225,57 @@ def sum_density(x):
 def exp1j(phase):
     """Return `e^{i * phase}`."""
     return torch.exp(1J * phase)
+
+
+# =============================================================================
+def eig_sun(x):
+    """returns eigenvalues and eigenvectors of SU(n) matrices using eigh,
+    which is for hermitian matrices. We could use torch.linalg.eig, but
+    it does seem to accumulate error with large number of layers.
+
+    We use
+
+    .. math:
+
+       U \Omega = \Omega \Lambda
+       U^\dagger \Omega = \Omega \Lambda^\dagger
+
+    to write
+
+    .. math:
+
+       (U + U^\dagger) \Omega = \Omega (\Lambda + \Lambda^\dagger)
+       (U - U^\dagger) \Omega = \Omega (\Lambda - \Lambda^\dagger)
+
+    to obtain eigenvalues and eigencetors of SU(n) matrices. The algorithm used
+    here can lead to wrong decomposition if when :math:`\sin(\lambda_i)` are
+    degenerate.
+    """
+    eig_2sin, modal = torch.linalg.eigh(1J * (- x + x.adjoint()))
+    eig_2cos = torch.diagonal(
+            modal.adjoint() @ (x + x.adjoint()) @ modal,
+            dim1=-1, dim2=-2
+            )
+    eig = (eig_2cos + eig_2sin * 1J) / 2
+    return eig, modal
+
+
+def _naive_project2sun(x, clone=False):
+    """returns a (naive) special unitarized version of the matrix, which is
+    obtained by orthonormalizing the rows of the matrix.
+    NOT COMPATABLE WITH BACH PROPAGATION OF DERIVATIVES.
+    """
+    clone = True
+    if clone:
+        x = torch.clone(x)
+    n = x.shape[-1]
+    for i in range(n):
+        for j in range(i):
+            vdot = torch.sum(x[..., i, :] * x[..., j, :].conj(), dim=-1)
+            x[..., i, :] = x[..., i, :] - x[..., j, :] * vdot.unsqueeze(-1)
+        r = torch.sum(x[..., i, :].real**2 + x[..., i, :].imag**2, dim=-1)
+        x[..., i, :] = x[..., i, :] * (1.0 / r.unsqueeze(-1)**0.5)
+
+    det = torch.linalg.det(x).unsqueeze(-1).unsqueeze(-1)
+
+    return x / det**(1/3.)
