@@ -91,6 +91,10 @@ class GaugeAction:
         """Returns log probability up to an additive constant."""
         return -self.action(x) - action_logz
 
+    @property
+    def parameters(self):
+        return dict(beta=self.beta, ndim=self.ndim)
+
 
 class U1GaugeAction(GaugeAction):
     """A special case of GaugeAction with special `plaq_rule`, ...."""

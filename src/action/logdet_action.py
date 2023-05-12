@@ -58,3 +58,6 @@ class LogDetAction:
         """Returns log probability up to an additive constant."""
         return -self.action(x) - action_logz
 
+    @property
+    def parameters(self):
+        return {'fermions_dict': self.fermions_dict}

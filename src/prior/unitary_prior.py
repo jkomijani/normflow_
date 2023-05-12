@@ -21,6 +21,10 @@ class UnPrior(Prior):
         self.dist.normal_dist.loc = self.dist.normal_dist.loc.to(*args, **kwargs)
         self.dist.normal_dist.scale = self.dist.normal_dist.scale.to(*args, **kwargs)
 
+    @property
+    def parameters(self):
+        return dict(loc=self.dist.normal_dist.loc.item(), scale=self.dist.normal_dist.scale.item())
+
 
 class SUnPrior(Prior):
     """Generate random special unitary matrices, i.e. random SU(n)."""
@@ -35,6 +39,10 @@ class SUnPrior(Prior):
         # samples will also be created on that device
         self.dist.normal_dist.loc = self.dist.normal_dist.loc.to(*args, **kwargs)
         self.dist.normal_dist.scale = self.dist.normal_dist.scale.to(*args, **kwargs)
+
+    @property
+    def parameters(self):
+        return dict(loc=self.dist.normal_dist.loc.item(), scale=self.dist.normal_dist.scale.item())
 
 
 class U1Prior(Prior):
@@ -53,3 +61,7 @@ class U1Prior(Prior):
         # samples will also be created on that device
         self.dist.uniform_dist.loc = self.dist.uniform_dist.loc.to(*args, **kwargs)
         self.dist.uniform_dist.scale = self.dist.uniform_dist.scale.to(*args, **kwargs)
+
+    @property
+    def parameters(self):
+        return dict(loc=self.dist.uniform_dist.loc.item(), scale=self.dist.uniform_dist.scale.item())

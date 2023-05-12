@@ -27,6 +27,7 @@ class ScalarPhi4Action:
         self.w_4 = lambd
         self.ndim = ndim
         self._propagate_density = propagate_density  # for test
+        self.parameters = dict(m_sq=m_sq, lambd=lambd, ndim=ndim, kappa=kappa, a=a)
 
     def _set_propagate_density(self, propagate_density):  # for test
         self._propagate_density = propagate_density
@@ -38,6 +39,10 @@ class ScalarPhi4Action:
         self.w_0 = 0.5 * (2 * kappa)
         self.w_2 = 0.5 * (m_sq + 2 * kappa * ndim)
         self.w_4 = lambd
+        self.parameters['m_sq'] = m_sq
+        self.parameters['lambd'] = lambd
+        self.parameters['kappa'] = kappa
+        self.parameters['a'] = a
        
     def __call__(self, cfgs, subtractive_term=None):
         if self._propagate_density:

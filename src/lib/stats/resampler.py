@@ -3,6 +3,7 @@
 
 import torch
 import numpy as np
+from functools import partial
 
 
 class Resampler:
@@ -42,7 +43,7 @@ class Resampler:
         binned_samples = samples[:(l_b * binsize)].reshape(l_b, binsize, -1)
 
         if type(samples) == torch.Tensor:
-            arange, randint, randperm = torch.arange, torch.randint, torch.randperm
+            arange, randint, randperm = partial(torch.arange, device=samples.device), partial(torch.randint, device=samples.device), partial(torch.randperm, device=samples.device)
         else:
             arange, randint, randperm = np.arange, np.random.randint, np.random.permutation
 

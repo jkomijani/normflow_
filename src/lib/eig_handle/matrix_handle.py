@@ -94,7 +94,7 @@ class MatrixParametrizer:
     def calc_log_conjugacy_vol(eig):
         """Return log of conjugacy volume up to a constant additive term."""
         sumlogabs2 = lambda x: 2 * torch.sum(torch.log(torch.abs(x)), dim=-1)
-        log_vol = torch.zeros(eig.shape[:-1])
+        log_vol = torch.zeros(eig.shape[:-1], device=eig.device)
         for k in range(eig.shape[-1] - 1):
             log_vol += sumlogabs2(eig[..., k:k+1] - eig[..., k+1:])
         return log_vol.unsqueeze(-1)  # unsqueeze to keep dimensions the same

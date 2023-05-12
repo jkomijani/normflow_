@@ -49,6 +49,10 @@ class MatrixAction:
         """Returns log probability up to an additive constant."""
         return -self.action(x) - action_logz
 
+    @property
+    def parameters(self):
+        return {'beta': self.beta}
+
 
 def calc_trace(x):
     return torch.sum(torch.diagonal(x, dim1=-2, dim2=-1), dim=-1)

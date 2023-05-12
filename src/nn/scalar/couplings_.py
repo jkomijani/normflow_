@@ -235,7 +235,7 @@ class RQSplineBlock_(CouplingBlock_):
         def zeropad(w):
             pad_shape = list(w.shape)
             pad_shape[axis] = 1  # note that axis migh be e.g. -1
-            return torch.zeros(pad_shape)
+            return torch.zeros(pad_shape, device=w.device)
 
         cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=axis)
         to_coord = lambda w: torch.cat((zeropad(w), cumsumsoftmax(w)), dim=axis)

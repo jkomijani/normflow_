@@ -53,6 +53,12 @@ class Prior(ABC):
         # also be created on the same device
         pass
 
+    @property
+    @abstractmethod
+    def parameters(self):
+        """ This method should return all parameters needed to define the Prior in a dict """
+        pass
+
 
 class UniformPrior(Prior):
     """Creates a uniform distribution parameterized by low and high;
@@ -75,6 +81,10 @@ class UniformPrior(Prior):
         # samples will also be created on that device
         self.dist.low = self.dist.low.to(*args, **kwargs)
         self.dist.high = self.dist.high.to(*args, **kwargs)
+
+    @property
+    def parameters(self):
+        return dict(low=self.dist.low.item(), high=self.dist.high.item())
 
 
 class NormalPrior(Prior):
@@ -106,6 +116,10 @@ class NormalPrior(Prior):
         # samples will also be created on that device
         self.dist.loc = self.dist.loc.to(*args, **kwargs)
         self.dist.scale = self.dist.scale.to(*args, **kwargs)
+
+    @property
+    def parameters(self):
+        return dict(loc=float(self.dist.loc.cpu().numpy().flat[0]), scale=float(self.dist.scale.cpu().numpy().flat[0]))
 
 
 class NormalPriorWithOutlier(NormalPrior):

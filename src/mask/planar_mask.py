@@ -44,7 +44,7 @@ class ZebraPlanarMask:
     def cat(self, x_white, x_black):
         shape = list(x_white.shape) 
         shape[1 + self.nu] *= 2  # the 0 axis is the batch axis
-        x = torch.zeros(shape, dtype=x_white.dtype)
+        x = torch.zeros(shape, dtype=x_white.dtype, device=x_white.device)
         x[self.white_ind] = x_white
         x[self.black_ind] = x_black
         return x

@@ -21,6 +21,7 @@ class SchwingerAction(U1GaugeAction):
             fermions_dict={0: dict(mass=1, copies=1)}
             ):
         super().__init__(beta=beta, ndim=ndim)
+        self.fermions_dict = fermions_dict
         self.fermions = LogDetAction(fermions_dict)
 
     def __call__(self, cfgs, subtractive_term=None):
@@ -41,3 +42,7 @@ class SchwingerAction(U1GaugeAction):
 
     def action_density(self, cfgs, subtractive_term=None):
         pass
+
+    @property
+    def parameters(self):
+        return dict(beta=self.beta, ndim=self.ndim, fermions=self.fermions.fermions_dict)
