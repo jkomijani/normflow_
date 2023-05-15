@@ -301,9 +301,6 @@ class SplineNet(Module):
         if knots_x is None:
             self.xlim, self.xwidth = xlim, xlim[1] - xlim[0]
             self.weights_x = torch.nn.Parameter(init(knots_len - 1))
-            self.device = self.weights_x.device
-        else:
-            self.device = self.knots_x.device
 
         if knots_y is None:
             self.ylim, self.ywidth = ylim, ylim[1] - ylim[0]
@@ -329,9 +326,9 @@ class SplineNet(Module):
     def make_spline(self):
         dim = self.knots_axis
         zero_shape = (*self.spline_shape, 1)
-        zero = torch.zeros(zero_shape, device=self.device)
+        zero = lambda w: torch.zeros(zero_shape, device=w.device)
         cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=dim)
-        to_coord = lambda w: torch.cat((zero, cumsumsoftmax(w)), dim=dim)
+        to_coord = lambda w: torch.cat((zero(w), cumsumsoftmax(w)), dim=dim)
         to_deriv = lambda d: self.softplus(d) if d is not None else None
 
         knots_x = self.knots_x

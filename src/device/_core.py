@@ -149,8 +149,9 @@ class DistributedFunc:
 
 
 def gen_seed(size=None):
-    # if size is None returns a number otherwise an array
+    # if size is None returns a number otherwise a list
+    # at least for numpy seed cannot be larger that 2**32 - 1
     if size is None:
-        return torch.randint(low=0, high=2**63 - 1, size=[1]).tolist()[0]
+        return torch.randint(2**32 - 1, size=[1]).tolist()[0]
     else:
-        return torch.randint(low=0, high=2**63 - 1, size=size).tolist()
+        return torch.randint(2**32 - 1, size=size).tolist()

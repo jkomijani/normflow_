@@ -93,16 +93,16 @@ class FFTNet_(Module_):
     ----------
     lat_shape: list/tuple like
     ipsd_net: a NN for...
-    nozeromode: bool
-         include/ignore contribution of zero mode to log(J)
+    ignore_zeromode: bool
+         ignore/include contribution of zero mode to log(J)
     """
     
-    def __init__(self, lat_shape, ipsd_net, nozeromode=False, label='fftnet_'):
+    def __init__(self, lat_shape, ipsd_net, ignore_zeromode=False, label='fftnet_'):
         super().__init__(label=label)
         self.lat_ndim = len(lat_shape)
         self.lat_shape = lat_shape
         self.ipsd_net = ipsd_net
-        self.nozeromode = nozeromode
+        self.ignore_zeromode = ignore_zeromode
 
         # we use rfftn instead of fftn, which means the length of the
         # last axis of data changes from n to n//2 + 1
@@ -137,8 +137,9 @@ class FFTNet_(Module_):
 
     @staticmethod
     def build(lat_shape, knots_len=10, eff_mass2=1, eff_kappa=1, a=1,
-            nozeromode=False, **ipsd_kwargs
+            ignore_zeromode=False, nozeromode=False, **ipsd_kwargs
             ):
+        # better not to use nozeromode
 
         freetheory = FreeScalar(lat_shape)
         max_lat_k2 = torch.max(freetheory.calc_lattice_k2())
@@ -151,14 +152,17 @@ class FFTNet_(Module_):
         logm2 = torch.log(torch.tensor(eff_mass2))
         logk2 = torch.log(eff_kappa * max_lat_k2)
         mydict = dict(a=a, ndim=len(lat_shape))
-        if nozeromode:
+
+        if nozeromode and not ignore_zeromode:
             logy = IPSDnozeromode.apply_scale(torch.tensor([logk2]), **mydict)
             ipsd_net = IPSDnozeromode(knots_len, logy=logy, **ipsd_kwargs)
         else:
             logy = IPSD.apply_scale(torch.tensor([logm2, logk2]), **mydict)
-            ipsd_net = IPSD(knots_len, logy=logy, **ipsd_kwargs)
+            ipsd_net = IPSD(knots_len, logy=logy,
+                    ignore_zeromode=ignore_zeromode, **ipsd_kwargs
+                    )
 
-        return FFTNet_(lat_shape, ipsd_net, nozeromode=nozeromode)
+        return FFTNet_(lat_shape, ipsd_net, ignore_zeromode=ignore_zeromode)
 
     def log_jacobian(self, weights):
         """Return logarithm of the Jacobian of multiplication by `weights`.
@@ -199,7 +203,8 @@ class FFTNet_(Module_):
         shape = self.lat_shape if shape is None else shape
         ipsd_net = self.ipsd_net.transfer(scale_factor=scale_factor, ndim=self.lat_ndim)
         try:
-            return self.__class__(shape, ipsd_net=ipsd_net, nozeromode=self.nozeromode)
+            return self.__class__(shape, ipsd_net=ipsd_net,
+                    ignore_zeromode=self.ignore_zeromode)
         except:
             return self.__class__(shape, ipsd_net=ipsd_net)
 
@@ -219,15 +224,21 @@ class FFTNet_(Module_):
 class IPSD(SplineNet):
     """A class for Inverse Power Spectral Density."""
 
-    def __init__(self, knots_len, *, logy, **kwargs):
+    def __init__(self, knots_len, *, logy, ignore_zeromode=False, **kwargs):
         super().__init__(knots_len, **kwargs)
         self.logy = torch.nn.Parameter(logy)
+        self.ignore_zeromode = ignore_zeromode
 
     def forward(self, x):
         y = torch.exp(self.logy)
-        return y[0] + y[1] * super().forward(x)
+        sigma_k2 = y[0] + y[1] * super().forward(x)
+        if self.ignore_zeromode:
+            ind = tuple([0]*x.dim())
+            sigma_k2[ind] = 1  # replace 0 with 1 to get correct jacobian item
+        return sigma_k2
 
-    def backward(self, x):
+    def _backward(self, x):
+        # Note that this typically is not used!
         y = torch.exp(self.logy)
         return super().backward((x - y[0]) / y[1])
 
@@ -256,6 +267,10 @@ class IPSDnozeromode(SplineNet):
     """A class for Inverse Power Spectral Density; a case without zero mode.
 
     The coefficient of zero mode is set to 1 (DO NOT CHANGE THIS).
+
+    ***COMMENT***
+    It is better to use IPSD with ignore_zeromode option rather than this one.
+    We still keep it this one here just in case.
     """
 
     def __init__(self, knots_len, *, logy, **kwargs):
@@ -269,7 +284,8 @@ class IPSDnozeromode(SplineNet):
         sigma_k2[ind] = 1  # replace 0 with 1 to avoid divergence in 1/ipsd
         return sigma_k2
 
-    def backward(self, x):
+    def _backward(self, x):
+        # Note that this typically is not used!
         y = torch.exp(self.logy)
         x = x / y[0]
         ind = tuple([0]*x.dim())
