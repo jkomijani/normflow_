@@ -181,7 +181,7 @@ class DistConvertor_(ModuleList_):
     def cdf_mapper(self, x):
         """Useful for mapping the CDF of inputs to the CDF of outputs."""
         # The input `x` is expected to be in range 0 to 1.
-        self.get_spline_.forward(x)
+        return self.get_spline_.forward(x)
 
     def transfer(self, **kwargs):
         return copy.deepcopy(self)

@@ -58,12 +58,10 @@ class UnGroup:
         self.log_tot_vol = self.log_group_vol + np.log(np.product(shape))
 
     def calc_log_group_volume(self):
-        """Return volume of U(n); we use eq (5.16) of `[Mezzadri]`_
+        """Return volume of U(n); we use eq (5.16) of `[Boya et. al.]`_
 
-        .. _[Mezzadri]:
-            F. Mezzadri,
-            "How to generate random matrices from the classical compact groups",
-            :arXiv:`math-ph/0609050`.
+        .. _[Boya et. al.]:
+            "Volumes of Compact Manifolds", arXiv:`math-ph/0210033`
         """
         n = self.n
         logc = log(n) + (n+1) * log(2) + (n**2 + n) * log(pi)
@@ -103,12 +101,10 @@ class SUnGroup(UnGroup):
     """
 
     def calc_log_group_volume(self):
-        """Return volume of SU(n); we use eq (5.13) of `[Mezzadri]`_
+        """Return volume of U(n); we use eq (5.13) of `[Boya et. al.]`_
 
-        .. _[Mezzadri]:
-            F. Mezzadri,
-            "How to generate random matrices from the classical compact groups",
-            :arXiv:`math-ph/0609050`.
+        .. _[Boya et. al.]:
+            "Volumes of Compact Manifolds", arXiv:`math-ph/0210033`
         """
         n = self.n
         logc = log(n) + (n-1) * log(2) + (n**2 + n - 2) * log(pi)
