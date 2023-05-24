@@ -1,2 +1,3 @@
 
-from .ginibre_matrices import GinibreComplexMatrixDist
+from . import ginibre_dist
+from . import unitary_group

@@ -8,7 +8,7 @@ import torch
 
 
 # =============================================================================
-class GinibreComplexMatrixDist:
+class GinibreCMatrixDist:
     """
     For generating matrices from the Ginibre ensemble, which is the ensemble of
     square, complex-values matrices with i.i.d. normal entries.
@@ -32,7 +32,7 @@ class GinibreComplexMatrixDist:
         :arXiv:`math-ph/0609050`.
     """
 
-    def __init__(self, n, shape=(1,), sigma=1):
+    def __init__(self, *, n, shape=(1,), sigma=1):
         self.n = n
         self.shape = shape
         shape_ = (*shape, n, n)  # the shape of underlying torch tensor
