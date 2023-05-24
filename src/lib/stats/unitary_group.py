@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Javad Komijani
+# Copyright (c) 2021-2023 Javad Komijani
 
 """
 This module has classes to generate random unitary and special unitary matrices.
@@ -9,9 +9,12 @@ import numpy as np
 
 from math import log, lgamma, pi  # lgamma: log gamma
 
+from .ginibre_dist import GinibreCMatrixDist
+from ..linalg import haar_qr
+
 
 # =============================================================================
-class UnGroup:
+class UnGroup(GinibreCMatrixDist):
     """Generate random unitary matrices, i.e. random U(n).
     
     Simliar to `[scipy.stats.unitary_group]`_, we follow `[Mezzadri]`_ to
@@ -36,60 +39,31 @@ class UnGroup:
         :arXiv:`math-ph/0609050`.
     """
 
-    def __init__(self, n, shape=(1,)):
-        self.n = n
-        self.shape = shape
-        # shape_: shape of underlying torch tensor
-        if n == 1:
-            shape_ = shape
-        else:
-            shape_ = (*shape, n, n)
+    def __init__(self, *, n, shape=(1,)):
+        super().__init__(n=n, shape=shape)
 
-        if len(shape) == 1 and shape[0] == 1 and n > 1:
-            shape_ = shape_[1:]
-            self.reduced_shape = True
-        else:
-            self.reduced_shape = False
+        self.log_group_vol = self.calc_log_group_volume(n)
+        self.log_tot_vol = self.log_group_vol + log(np.product(shape))
 
-        loc = torch.zeros(shape_)  # i.e. mean
-        scale = torch.ones(shape_)  # i.e. sigma
-        self.normal_dist = torch.distributions.normal.Normal(loc, scale)
-        self.log_group_vol = self.calc_log_group_volume()
-        self.log_tot_vol = self.log_group_vol + np.log(np.product(shape))
+    def sample(self, size=(1,)):  # this is the `sample` of dist (not prior)
+        """Draw random samples."""
+        samples = super().sample(size)  # Ginibre GL(n, C) matrices
+        return haar_qr(samples, q_only=True)  # Unitary matrices
 
-    def calc_log_group_volume(self):
+    def log_prob(self, x):
+        """Return log_prob of each matrix."""  # one value for each matrix
+        lat_shape = x.shape[:-2]  # one log_prop for each matrix
+        return torch.zeros(lat_shape, device=x.device) - self.log_group_vol
+
+    @staticmethod
+    def calc_log_group_volume(n):
         """Return volume of U(n); we use eq (5.16) of `[Boya et. al.]`_
 
         .. _[Boya et. al.]:
             "Volumes of Compact Manifolds", arXiv:`math-ph/0210033`
         """
-        n = self.n
         logc = log(n) + (n+1) * log(2) + (n**2 + n) * log(pi)
         return 0.5 * logc + sum([-lgamma(1+k) for k in range(1, n)])
-
-    def log_prob(self, x):
-        """Return log_prob of each matrix."""  # one value for each matrix
-        shape = x.shape
-        if self.n > 1:
-            shape = shape[:-2]  # one log_prop for each matrix
-        if self.reduced_shape:
-            shape = (*shape, 1)  # restore the reduced dimension
-
-        return torch.zeros(shape, device=x.device) - self.log_group_vol
-
-    def sample(self, size=(1,)):  # this is the `sample` of dist (not prior)
-        """Draw random samples."""
-
-        normal = self.normal_dist.sample
-
-        mat = normal(size) + 1j * normal(size)
-
-        if self.n == 1:
-            return mat / torch.abs(mat)
-        else:
-            q, r = torch.linalg.qr(mat, mode='complete')
-            d = torch.diagonal(r, dim1=-2, dim2=-1).unsqueeze(-2)
-            return q * (d/torch.abs(d))
 
 
 # =============================================================================
@@ -100,16 +74,6 @@ class SUnGroup(UnGroup):
     to generate random SU(n) matrices.
     """
 
-    def calc_log_group_volume(self):
-        """Return volume of U(n); we use eq (5.13) of `[Boya et. al.]`_
-
-        .. _[Boya et. al.]:
-            "Volumes of Compact Manifolds", arXiv:`math-ph/0210033`
-        """
-        n = self.n
-        logc = log(n) + (n-1) * log(2) + (n**2 + n - 2) * log(pi)
-        return 0.5 * logc + sum([-lgamma(1+k) for k in range(1, n)])
-
     def sample(self, size=(1,)):  # this is the `sample` of dist (not prior)
         """Draw random samples."""
         samples = super().sample(size)
@@ -119,6 +83,16 @@ class SUnGroup(UnGroup):
         # 2. det^(1/n) covers only 1/n-th of U(1) -> volume 1/n-th of U(1)
         # 3. determinant of det^(1/n) I_{n x n} covers U(1); stretching fac. n
         return samples / torch.pow(det, 1/self.n)
+
+    @staticmethod
+    def calc_log_group_volume(n):
+        """Return volume of U(n); we use eq (5.13) of `[Boya et. al.]`_
+
+        .. _[Boya et. al.]:
+            "Volumes of Compact Manifolds", arXiv:`math-ph/0210033`
+        """
+        logc = log(n) + (n-1) * log(2) + (n**2 + n - 2) * log(pi)
+        return 0.5 * logc + sum([-lgamma(1+k) for k in range(1, n)])
 
 
 # =============================================================================
@@ -155,7 +129,7 @@ class U1Group:
 
 # =============================================================================
 def test_spectrum(prior, n_samples=100, display=True, bins=30):
-    """Test the distibution of eigenvalues.
+    r"""Test the distribution of eigenvalues.
 
     Since Haar measure is the analogue of a uniform distribution, each set of
     eigenvalues must have the same weight, therefore the normalized eigenvalue
@@ -183,7 +157,7 @@ def test_spectrum(prior, n_samples=100, display=True, bins=30):
         axs[0].set_ylabel(r"$\rho(\theta)$")
         axs[0].set_xlim([-np.pi, np.pi])
 
-        if len(phase.shape) > 1 and phase.shape[1] > 1:
+        if len(phase.shape) > 1 and phase.shape[-1] > 1:
             phase = torch.sort(phase, dim=-1)[0]
             diff_phase = phase[..., 1:] - phase[..., :-1]
             for ind in range(diff_phase.shape[-1]):

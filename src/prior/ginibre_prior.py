@@ -4,14 +4,14 @@
 
 
 from .prior import Prior
-from ..lib.stats import GinibreComplexMatrixDist
+from ..lib.stats import GinibreCMatrixDist
 
 
 class GinibrePrior(Prior):
     """Generate random matrices from the Ginibre ensemble."""
 
     def __init__(self, *, n, shape=(1,), sigma=1, **kwargs):
-        dist = GinibreComplexMatrixDist(n, shape=shape, sigma=sigma)
+        dist = GinibreCMatrixDist(n=n, shape=shape, sigma=sigma)
         super().__init__(dist, **kwargs)
         self.shape = shape
 
