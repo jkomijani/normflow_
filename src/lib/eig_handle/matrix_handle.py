@@ -20,7 +20,7 @@ pi = np.pi
 
 
 # =============================================================================
-class MatrixParametrizer:
+class UnMatrixParametrizer:
 
     def __init__(self):
         self.modal_matrix = None
@@ -111,7 +111,7 @@ class MatrixParametrizer:
 
 
 # =============================================================================
-class SUnMatrixParametrizer(MatrixParametrizer):
+class SUnMatrixParametrizer(UnMatrixParametrizer):
 
     def phase2param_(self, phase):
         self.order = ModalOrder(self.modal_matrix)  # see order.sorted_ind
@@ -135,7 +135,7 @@ class SUnMatrixParametrizer(MatrixParametrizer):
 
 
 # =============================================================================
-class SU2MatrixParametrizer(MatrixParametrizer):
+class SU2MatrixParametrizer(UnMatrixParametrizer):
     """Special case of SUnMatrixParametrizer with simpler methods."""
 
     def phase2param_(self, phase):
@@ -160,7 +160,7 @@ class SU2MatrixParametrizer(MatrixParametrizer):
 
 
 # =============================================================================
-class SU3MatrixParametrizer(MatrixParametrizer):
+class SU3MatrixParametrizer(UnMatrixParametrizer):
     """Special case of SUnMatrixParametrizer with simpler methods."""
 
     def phase2param_(self, phase):
