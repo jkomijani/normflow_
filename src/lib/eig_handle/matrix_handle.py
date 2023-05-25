@@ -12,6 +12,7 @@ import torch
 import numpy as np
 
 from .ordering import ZeroSumOrder, ModalOrder
+from ..linalg import eigu  # eig for unitray matrices
 
 
 mul = torch.matmul
@@ -33,7 +34,7 @@ class MatrixParametrizer:
         matrices to integrals over corresponding spectral and modal matrices.
         The inverse of Jacobian is equal to the volume of conjugacy class.
         """
-        eig, self.modal_matrix = eig_sun(matrix)  # torch.linalg.eig(matrix)
+        eig, self.modal_matrix = eigu(matrix)  # torch.linalg.eig(matrix)
         self.phase = torch.angle(eig)  # in (-pi, pi]
         # we save phase because it can be useful when self.param2matrix_ is
         # called with the `reduce_` option set to True
@@ -225,57 +226,3 @@ def sum_density(x):
 def exp1j(phase):
     """Return `e^{i * phase}`."""
     return torch.exp(1J * phase)
-
-
-# =============================================================================
-def eig_sun(x):
-    """returns eigenvalues and eigenvectors of SU(n) matrices using eigh,
-    which is for hermitian matrices. We could use torch.linalg.eig, but
-    it does seem to accumulate error with large number of layers.
-
-    We use
-
-    .. math:
-
-       U \Omega = \Omega \Lambda
-       U^\dagger \Omega = \Omega \Lambda^\dagger
-
-    to write
-
-    .. math:
-
-       (U + U^\dagger) \Omega = \Omega (\Lambda + \Lambda^\dagger)
-       (U - U^\dagger) \Omega = \Omega (\Lambda - \Lambda^\dagger)
-
-    to obtain eigenvalues and eigencetors of SU(n) matrices. The algorithm used
-    here can lead to wrong decomposition if when :math:`\sin(\lambda_i)` are
-    degenerate.
-    """
-    eig_2sin, modal = torch.linalg.eigh(1J * (- x + x.adjoint()))
-    eig_2cos = torch.diagonal(
-            modal.adjoint() @ (x + x.adjoint()) @ modal,
-            dim1=-1, dim2=-2
-            )
-    eig = (eig_2cos + eig_2sin * 1J) / 2
-    return eig, modal
-
-
-def _naive_project2sun(x, clone=False):
-    """returns a (naive) special unitarized version of the matrix, which is
-    obtained by orthonormalizing the rows of the matrix.
-    NOT COMPATABLE WITH BACH PROPAGATION OF DERIVATIVES.
-    """
-    clone = True
-    if clone:
-        x = torch.clone(x)
-    n = x.shape[-1]
-    for i in range(n):
-        for j in range(i):
-            vdot = torch.sum(x[..., i, :] * x[..., j, :].conj(), dim=-1)
-            x[..., i, :] = x[..., i, :] - x[..., j, :] * vdot.unsqueeze(-1)
-        r = torch.sum(x[..., i, :].real**2 + x[..., i, :].imag**2, dim=-1)
-        x[..., i, :] = x[..., i, :] * (1.0 / r.unsqueeze(-1)**0.5)
-
-    det = torch.linalg.det(x).unsqueeze(-1).unsqueeze(-1)
-
-    return x / det**(1/3.)

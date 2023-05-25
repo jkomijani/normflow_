@@ -4,7 +4,7 @@
 
 
 from .prior import Prior
-from ..lib.stats.unitary_group import UnGroup, SUnGroup, U1Group
+from ..lib.stats import UnGroup, SUnGroup, U1Group
 
 
 class UnPrior(Prior):

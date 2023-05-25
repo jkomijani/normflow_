@@ -4,7 +4,7 @@
 
 
 from .prior import Prior
-from ..lib.stats.ginibre_dist import GinibreCMatrixDist
+from ..lib.stats import GinibreCMatrixDist
 
 
 class GinibrePrior(Prior):
