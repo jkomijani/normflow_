@@ -8,6 +8,43 @@ import torch
 mul = torch.matmul
 
 
+class TemplateStaplesHandle:
+
+    def __init__(self, staples=None):
+
+        self.staples_svd, self.staples_svd_phasor = self._svd(staples)
+
+    def staple(self, x, staples=None):
+        if staples is not None:
+            self.staples_svd, self.staples_svd_phasor = self._svd(staples)
+
+        svd = self.staples_svd
+        if svd is not None:
+            x = (svd.Vh @ x @ svd.U) * self.staples_svd_phasor.conj()
+
+        return x
+
+    def unstaple(self, x, staples=None):
+        if staples is not None:
+            self.staples_svd, self.staples_svd_phasor = self._svd(staples)
+
+        svd = self.staples_svd
+        if svd is not None:
+            x = (svd.Vh.adjoint() @ x @ svd.U.adjoint()) * self.staples_svd_phasor
+
+        return x
+
+    @staticmethod
+    def _svd(z):
+        if z is None:
+            svd, svd_phasor = None, None
+        else:
+            svd = torch.linalg.svd(z)
+            svd_phasor = torch.linalg.det(z)**(1/z.shape[-1])
+            svd_phasor = svd_phasor.reshape(*z.shape[:-2], 1, 1)
+        return svd, svd_phasor
+
+
 class PlanarStaplesHandle:
 
     def calc_wilson_staples(self, x_mu, x_nu, zpmask):

@@ -93,7 +93,7 @@ class UnMatrixParametrizer:
 
     @staticmethod
     def calc_log_conjugacy_vol(eig):
-        """Return log of conjugacy volume up to a constant additive term."""
+        """Return log of conjugacy volume up to an additive constant."""
         sumlogabs2 = lambda x: 2 * torch.sum(torch.log(torch.abs(x)), dim=-1)
         log_vol = torch.zeros(eig.shape[:-1], device=eig.device)
         for k in range(eig.shape[-1] - 1):
@@ -102,7 +102,7 @@ class UnMatrixParametrizer:
 
     @staticmethod
     def calc_conjugacy_vol(eig):
-        """Return log of conjugacy volume up to a constant additive term."""
+        """Return conjugacy volume up to a multiplacative constant."""
         prodabs2 = lambda x: torch.prod(torch.abs(x)**2, dim=-1)
         vol = torch.ones(eig.shape[:-1])
         for k in range(eig.shape[-1] - 1):
