@@ -8,7 +8,7 @@ import copy
 from normflow import torch_device
 
 from ..lib.combo import estimate_logz, fmt_val_err
-from ..lib.stats.resampler import Resampler
+from ..lib.stats import Resampler
 
 seize = lambda var: var.detach().cpu().numpy()
 
@@ -116,7 +116,6 @@ class MCMCSampler:
         def calc_rate(logqp):
             return np.mean(Metropolis.calc_accept_status(logqp))
 
-        # mean, std = Resampler(method='shuffling').eval(
         mean, std = Resampler(method=method).eval(
                 logqp, fn=calc_rate, n_resamples=n_resamples
                 )
