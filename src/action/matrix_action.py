@@ -13,9 +13,10 @@ class MatrixAction:
         S = beta / n  Tr f(M) \\
         f(M) = Re \sum a_k M^k .
     """
-    def __init__(self, *, beta, func=lambda x: torch.real(x)):
+    def __init__(self, *, beta, gamma_mat=None, func=lambda x: torch.real(x)):
         self.beta = beta
         self.func = func
+        self.gamma_mat = gamma_mat
 
     def reset_parameters(self, *, beta):
         self.beta = beta
@@ -43,6 +44,8 @@ class MatrixAction:
         return action
    
     def action_density(self, cfgs):
+        if self.gamma_mat is not None:
+            cfgs = cfgs @ self.gamma_mat
         return -self.beta * calc_reduced_trace(self.func(cfgs))
 
     def log_prob(self, x, action_logz=0):
