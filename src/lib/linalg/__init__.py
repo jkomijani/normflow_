@@ -4,3 +4,6 @@
 
 from .qr_decomposition import haar_qr, haar_sqr
 from .eig_decomposition import eigu  # eig for unitray matrices
+
+from .euler_angles import su2_to_euler_angles
+from .euler_angles import euler_angles_to_su2
