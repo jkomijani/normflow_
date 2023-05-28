@@ -71,7 +71,6 @@ class PlanarStaplesHandle:
         5. `x_mu_white` are the lower links in `mu` direction of white plaquettes.
         6. `x_mu_black` are the lower links in `mu` direction of black plaquettes.
 
-
             >>>    |;|;|;|;|;|;|
             >>>    -------------
             >>>    | | | | | | |

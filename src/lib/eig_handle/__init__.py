@@ -5,3 +5,4 @@ from .matrix_handle import SUnMatrixParametrizer, U1Parametrizer
 from .matrix_handle import SU2MatrixParametrizer, SU3MatrixParametrizer
 
 from .staples_handle import PlanarStaplesHandle, U1PlanarStaplesHandle
+from . import euler_handle
