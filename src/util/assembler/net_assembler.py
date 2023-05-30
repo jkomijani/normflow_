@@ -4,7 +4,7 @@
 from normflow import np, torch, torch_device, float_dtype, float_tensortype
 from normflow.nn import ModuleList_
 from normflow.nn import ShiftBlock_, AffineBlock_, RQSplineBlock_
-from normflow.nn import U1RQSplineBlock_, SU2RQSplineBlock_
+from normflow.nn import U1RQSplineBlock_, SU2RQSplineBlock_, SU3RQSplineBlock_
 from normflow.nn import DistConvertor_, Identity_
 from normflow.nn import FFTNet_, MeanFieldNet_, PSDBlock_
 from normflow.nn import ConvAct, LinearAct
@@ -101,6 +101,11 @@ class NetAssembler:
 
     def add_su2_spline_(self, *args, **kwargs):
         self.nets_.append(self.su2_spline_(*args, **kwargs))
+
+    def su3_spline_(self, net1, net2, **kwargs):
+        mydict = dict(xlims=[(0, 1), (-np.pi, np.pi)], ylims=[(0, 1), (-np.pi, np.pi)], boundaries=['none', 'periodic'])
+        mydict.update(kwargs)
+        return SU3RQSplineBlock_(net1, net2, mask=self.mask, **mydict)
 
     def add_fftnet_(self, **kwargs):
         self.nets_.append(self.fftnet_(**kwargs))
