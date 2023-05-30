@@ -77,7 +77,11 @@ class SU3RQSplineBlock_(RQSplineBlock_):
         to the network as two parameters.
     """
 
-    def __init__(self, net0, net1, xlims=[(0, 1), (-pi, pi)], ylims=[(0, 1), (-pi, pi)], boundaries=['none', 'periodic'], **kwargs):
+    def __init__(self, net0, net1,
+            xlims=[(0, 1), (-pi, pi)],
+            ylims=[(0, 1), (-pi, pi)],
+            boundaries=['none', 'periodic'], **kwargs
+            ):
 
         super().__init__(net0, net1, xlim=(0, 1), ylim=(0, 1), **kwargs)
         self.xlims = xlims
@@ -85,13 +89,26 @@ class SU3RQSplineBlock_(RQSplineBlock_):
         self.boundaries = boundaries
 
     def preprocess_fz(self, x):  # fz: frozen
-        # split x into two parts, one for each independent parameter of the eigenvectors of the SU(3) matrix
+        # split x into two parts, one for each independent parameter of the
+        # eigenvectors of the SU(3) matrix
         # further split each part into cos and sin if boundary == 'periodic'
-        x_split = list(x.split([1, 1], dim=self.channels_axis))
-        for i in range(2):
-            if self.boundaries[i] == 'periodic':
-                x_split[i] = torch.cat((torch.cos(x_split[i]), torch.sin(x_split[i])), dim=self.channels_axis)
-        return torch.cat(x_split, dim=self.channels_axis)
+        bound0, bound1 = self.boundaries
+        if bound0 == 'none' and bound1 == 'none':
+            pass
+        elif bound0 == 'none' and bound1 == 'periodic':
+            x_split = list(x.split([1, 1], dim=self.channels_axis))
+            x = torch.cat(
+                    (x_split[0], torch.cos(x_split[1]), torch.sin(x_split[1])),
+                    dim=self.channels_axis
+                    )
+        else:
+            x_split = list(x.split([1, 1], dim=self.channels_axis))
+            x = torch.cat(
+                    (torch.cos(x_split[0]), torch.sin(x_split[0]),
+                     torch.cos(x_split[1]), torch.sin(x_split[1])),
+                    dim=self.channels_axis
+                    )
+        return x
     
     def preprocess(self, x):
         # split x into two parts, one for each independent parameter of the eigenvectors of the SU(3) matrix
