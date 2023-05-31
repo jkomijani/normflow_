@@ -1,2 +1,2 @@
-from .mask import SplitMask, Mask
+from .mask import ListSplitMask, Mask
 from .planar_mask import ZebraPlanarMask

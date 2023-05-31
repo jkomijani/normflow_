@@ -8,7 +8,27 @@ import torch
 import itertools
 
 
-class SplitMask:
+class ListSplitMask:
+    """Each mask must have two methods: `split` and `cat` to split and
+    concatenate the data according to the mask. Another method called ``purify``
+    is needed to make sure the data is zero where it must be zero.
+    (The ``purify`` method is used by some classes, but not all.)
+    """
+
+    @staticmethod
+    def split(x):
+        return x[0], x[1]
+
+    @staticmethod
+    def cat(x0, x1):
+        return [x0, x1]
+
+    @staticmethod
+    def purify(x_chnl, *args, **kwargs):
+        return x_chnl
+
+
+class _Unused_SplitMask:
     """Each mask must have two methods: `split` and `cat` to split and
     concatenate the data according to the mask. Another method called ``purify``
     is needed to make sure the data is zero where it must be zero.
@@ -37,13 +57,20 @@ class Mask(torch.nn.Module):
     """
 
     def __init__(self, shape=(2, 2), parity=0, keepshape=True,
-            split_form='even-odd', cat_form='even-odd'
+            split_form='even-odd', cat_form='even-odd', mu=None
             ):
         """
         Parameters
         ----------
         split_form : str
-            Can be either of 'even-odd' or 'half-half'
+            Can be either of 'even-odd', 'half-half', or 'directional_even-odd'
+        cat_form : str
+            Relevant only if keepshape is False
+        mu : int
+            Used only with `split_form = directional_even-odd`
+        keepshape : boolean (optional)
+            Allows to have different masks for splitting and concatenating
+            (default is True)
         """
 
         super().__init__()
@@ -54,6 +81,8 @@ class Mask(torch.nn.Module):
                 return self.evenodd(shape, parity)
             elif split_form == 'half-half':
                 return self.halfhalf(shape, parity)
+            if split_form == 'directional_even-odd':
+                return self.directional_evenodd(shape, parity, mu=mu)
 
         self.register_buffer('mask', get_mask())
         if not keepshape:
@@ -75,6 +104,14 @@ class Mask(torch.nn.Module):
             mask[ind] = (sum(ind) + parity) % 2
         return mask
 
+    @staticmethod
+    def directional_evenodd(shape, parity, *, mu):
+        mask = torch.empty(shape, dtype=torch.uint8)
+        for ind in itertools.product(*tuple([range(l) for l in shape])):
+            mask[ind] = (sum(ind) + parity - ind[mu]) % 2
+        return mask
+
+    @staticmethod
     @staticmethod
     def halfhalf(shape, parity):
         mask = torch.empty(shape, dtype=torch.uint8)
