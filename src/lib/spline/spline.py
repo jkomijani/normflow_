@@ -165,7 +165,7 @@ class SplineTemplate:
         else:
             view_x_sorted = torch.movedim(x_sorted, axis, -1)
             view_x = torch.movedim(x, axis, -1)
-            view_ind = torch.searchsorted(view_x_sorted, view_x)
+            view_ind = torch.searchsorted(view_x_sorted.contiguous(), view_x.contiguous())
             return torch.movedim(view_ind, -1, axis)
 
     def clamp(self, x):
