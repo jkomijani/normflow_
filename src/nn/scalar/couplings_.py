@@ -284,14 +284,14 @@ class RQSplineBlock_(CouplingBlock_):
                 )
 
 
-class DoubleRQSplineBlock_(CouplingBlock_):
+class MultiRQSplineBlock_(CouplingBlock_):
     """
     a coupling block with two rational quadratic spline transformations,
     transforming two different parameters.
     """
 
     def __init__(self, net0, net1, *, mask,
-            xlims=[(0, 1), (-pi, pi)], ylims=[(0, 1), (-pi, pi)],
+            xlims=[(0, 1), (0, 1)], ylims=[(0, 1), (0, 1)],
             knots_x=[None, None], knots_y=[None, None],
             extraps=[{}, {}], channels_axis=1, label='double_spline_coupling_'
             ):
@@ -307,6 +307,7 @@ class DoubleRQSplineBlock_(CouplingBlock_):
                 mask=mask, channels_axis=channels_axis, label=label
                 )
 
+        self.num_splines = len(xlims)
         self.xlims = xlims
         self.ylims = ylims
         self.xwidths = [xlim[1] - xlim[0] for xlim in xlims]
@@ -320,7 +321,7 @@ class DoubleRQSplineBlock_(CouplingBlock_):
         # we set the beta of Softplus to log(2) so that self.softplus(0)
         # returns 1. With this setting it would be easy to set the derivatives
         # to 1 (with zero inputs).
-    
+
     def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
@@ -341,11 +342,33 @@ class DoubleRQSplineBlock_(CouplingBlock_):
         g = self.mask.purify(g, channel=which_half, zero2one=True)
         return fx_active, log0 + self.sum_density(torch.log(g))
 
+    def preprocess(self, x):
+        xs = torch.tensor_split(x, sections=self.num_splines, dim=self.channels_axis)
+        return xs
+
+    def postprocess(self, xs):
+        # concatenate list of x_active channels into single tensor
+        x = torch.cat(xs, dim=self.channels_axis)
+        return x
+
     def make_spline(self, out):
         """splits the out in self.channel_axis into two equal parts and makes two splines,
         one for each independent parameter of the eigenvectors of the SU(3) matrix.
         """
-        out_splits = torch.tensor_split(out, sections=2, dim=self.channels_axis)
+        out_splits = torch.tensor_split(
+                out, sections=self.num_splines, dim=self.channels_axis
+                )
+
+        axis = self.channels_axis
+        def zeropad(w):
+            pad_shape = list(w.shape)
+            pad_shape[axis] = 1  # note that axis migh be e.g. -1
+            return torch.zeros(pad_shape, device=w.device)
+
+        cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=axis)
+        to_coord = lambda w: torch.cat((zeropad(w), cumsumsoftmax(w)), dim=axis)
+        to_deriv = lambda d: self.softplus(d) if d is not None else None
+
         splines = []
         for i, out in enumerate(out_splits):
             """construct a spline with number of knots deduced from input `out`.
@@ -360,20 +383,10 @@ class DoubleRQSplineBlock_(CouplingBlock_):
             split into (m-1, m) parts and if both are fixed ther will be no
             partitioning.
             """
-            axis = self.channels_axis
             knots_x, knots_y = self.knots_x[i], self.knots_y[i]
             xwidth, ywidth = self.xwidths[i], self.ywidths[i]
             xlim, ylim = self.xlims[i], self.ylims[i]
             extrap = self.extraps[i]
-
-            def zeropad(w):
-                pad_shape = list(w.shape)
-                pad_shape[axis] = 1  # note that axis migh be e.g. -1
-                return torch.zeros(pad_shape, device=w.device)
-
-            cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=axis)
-            to_coord = lambda w: torch.cat((zeropad(w), cumsumsoftmax(w)), dim=axis)
-            to_deriv = lambda d: self.softplus(d) if d is not None else None
 
             n = out.shape[axis]  # n parameters to specify splines
             if knots_x is None and knots_y is None:
@@ -399,25 +412,8 @@ class DoubleRQSplineBlock_(CouplingBlock_):
             kwargs.update(dict(knots_axis=axis, extrap=extrap))
 
             splines.append(RQSpline(**kwargs))
-        return splines
 
-    def apply_spline_old(self, x_actives, splines, backward=False):
-        gs = [None, None]
-        for i in range(2):
-            #if self.xlims[i] != (0, 1):
-            #    # affinely scale x_actives[i] to [0, 1]
-            #    x_actives[i] = x_actives[i] - self.xlims[i][0]
-            #    x_actives[i] = x_actives[i] / (self.xlims[i][1] - self.xlims[i][0])
-            # apply backward or forward spline transformation
-            if backward:
-                x_actives[i], gs[i] = splines[i].backward(x_actives[i], grad=True)
-            else:
-                x_actives[i], gs[i] = splines[i](x_actives[i], grad=True)
-            #if self.ylims[i] != (0, 1):
-            #    # affinely scale x_actives[i] back to self.ylims[i]
-            #    x_actives[i] = x_actives[i] * (self.ylims[i][1] - self.ylims[i][0])
-            #    x_actives[i] = x_actives[i] + self.ylims[i][0]
-        return x_actives, gs
+        return splines
 
     def apply_spline(self, x_actives, splines, backward=False):
         x_actives_out = []

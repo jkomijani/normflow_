@@ -96,8 +96,8 @@ class SU3RQSplineBlock_(DoubleRQSplineBlock_):
         elif bound0 == 'none' and bound1 == 'periodic':
             # split x in two tensor views along index 1 of channels_axis
             x_split = torch.tensor_split(x, [1], dim=self.channels_axis)
-            assert torch.equal(x_split[0], list(x.split([1, 1], dim=self.channels_axis))[0])
-            assert torch.equal(x_split[1], list(x.split([1, 1], dim=self.channels_axis))[1])
+            assert torch.equal(x_split[0], x.split([1, 1], dim=self.channels_axis)[0])
+            assert torch.equal(x_split[1], x.split([1, 1], dim=self.channels_axis)[1])
             x = torch.cat(
                     (x_split[0], torch.cos(x_split[1]), torch.sin(x_split[1])),
                     dim=self.channels_axis
@@ -111,15 +111,3 @@ class SU3RQSplineBlock_(DoubleRQSplineBlock_):
                     dim=self.channels_axis
                     )
         return x
-    
-    def preprocess(self, x):
-        xs = torch.tensor_split(x, [1], dim=self.channels_axis)
-        assert torch.equal(xs[0], list(x.split([1, 1], dim=self.channels_axis))[0])
-        assert torch.equal(xs[1], list(x.split([1, 1], dim=self.channels_axis))[1])
-        return xs
-
-    def postprocess(self, xs):
-        # concatenate list of x_active channels into single tensor
-        x = torch.cat(xs, dim=self.channels_axis)
-        return x
-    

@@ -5,7 +5,8 @@ from .scalar.modules import ConvAct, LinearAct
 from .scalar.modules_ import DistConvertor_, Identity_
 from .scalar.modules_ import UnityDistConvertor_, PhaseDistConvertor_
 
-from .scalar.couplings_ import ShiftBlock_, AffineBlock_, RQSplineBlock_
+from .scalar.couplings_ import ShiftBlock_, AffineBlock_
+from .scalar.couplings_ import RQSplineBlock_, MultiRQSplineBlock_
 
 from .scalar.fftflow_ import FFTNet_
 from .scalar.meanfield_ import MeanFieldNet_
