@@ -22,7 +22,7 @@ class TemplateStaplesHandle:
         if svd is not None:
             x = (svd.Vh @ x @ svd.U) * self.staples_svd_phasor.conj()
 
-        return x
+        return x, svd.S
 
     def unstaple(self, x, staples=None):
         if staples is not None:
@@ -45,12 +45,13 @@ class TemplateStaplesHandle:
         return svd, svd_phasor
 
 
-class PlanarStaplesHandle:
+class WilsonStaplesHandle(TemplateStaplesHandle):
 
-    def calc_wilson_staples(self, x_mu, x_nu, zpmask):
+    def calc_staples(self, cfgs, *, mu, nu_list):
         """Calculate and return the staples from the Wilson gauge action.
-        
-        Stables of the Wilson gauge action are shown in the following cartoon:
+
+        Stables of the Wilson gauge action in any plane are shown in the
+        following cartoon:
 
             >>>     --b--
             >>>    c|   |a
@@ -59,54 +60,41 @@ class PlanarStaplesHandle:
             >>>                  --e--
 
         where `@ U @` shows the central link for which the staples are going to
-        be calculated according to a zebra planar mask,
-        where the plane is specified with indices `(mu, nu)` and `parity`
-        specified in the zebra planar mask.
-
-        In the following cartoon:
-        1. Horizontal & vertical axes are `(mu, nu)` axes.
-        2. Rows with `;` inside plaquettes are called black and the rest white.
-        3. If `parity == 1`, the black and white rows turn to the other color.
-        4. `x_nu_white` are the links in `nu` direction of white plaquettes.
-        5. `x_mu_white` are the lower links in `mu` direction of white plaquettes.
-        6. `x_mu_black` are the lower links in `mu` direction of black plaquettes.
-
-            >>>    |;|;|;|;|;|;|
-            >>>    -------------
-            >>>    | | | | | | |
-            >>>    -------------
-            >>>    |;|;|;|;|;|;|
-            >>>    -------------
-            >>>    | | | | | | |
-            >>>    -------------   -> mu
+        be calculated.
 
         Parameters
         ----------
-        x_mu, x_nu : tensor, tensor
-            The links in mu and nu directions.
-        zpmask : mask
-            A zebra planar mask that is supposed to have mu, nu, and parity
-            properties and a split method.
+        cfgs : tensor
+            Tensor of configurations.
+        mu : int
+            Direction of the links with them the staples are associated.
         """
-        x_mu_white, x_mu_black = zpmask.split(x_mu)
-        x_nu_white, x_nu_black = zpmask.split(x_nu)
+        return sum(
+            [self.calc_planar_staples(cfgs, mu=mu, nu=nu) for nu in nu_list]
+            )
 
-        mu, nu, parity = zpmask.mu, zpmask.nu, zpmask.parity
-
-        # Calculate the staples $a 1/b 1/c$  &  $1/d 1/e f$
+    def calc_planar_staples(self, cfgs, *, mu, nu):
+        """Similar to calc_staples, except that the staples are calculated on
+        mu-nu plane.
+        """
+        # In the plane specified with mu and nu, calculate the staples
+        # $a 1/b 1/c$ and $1/d 1/e f$
+        #
         #   --b--
         #  c|   |a
         #   @ U @    +    @ U @
         #                f|   |d
         #                 --e--
+        x_mu = cfgs[:, mu]
+        x_nu = cfgs[:, nu]
 
-        # U = x_mu_white  # we do not need U
-        c = x_nu_white
-        f = x_nu_black if parity == 1 else torch.roll(x_nu_black, 1, dims=1 + nu)
-        a = torch.roll(a, -1, dims=1 + mu)
-        d = torch.roll(f, -1, dims=1 + mu)
-        b = x_mu_black if parity == 0 else torch.roll(x_mu_black, -1, dims=1 + nu)
-        e = torch.roll(b, 1, dims=1 + nu)  # Stride of b (x_mu_black) is 2
+        # U = x_mu  # we do not need U
+        c = x_nu
+        a = torch.roll(c, -1, dims=1 + mu)
+        b = torch.roll(x_mu, -1, dims=1 + nu)
+        e = torch.roll(x_mu, +1, dims=1 + nu)
+        f = torch.roll(c, +1, dims=1 + nu)
+        d = torch.roll(a, +1, dims=1 + nu)
 
         return self.staple1_rule(a, b, c) + self.staple2_rule(d, e, f)
 
@@ -127,7 +115,7 @@ class PlanarStaplesHandle:
         return mul(mul(e, d).adjoint(), f)
 
 
-class U1PlanarStaplesHandle(PlanarStaplesHandle):
+class U1WilsonStaplesHandle(WilsonStaplesHandle):
     """Properties and methods are chosen to be consistent with SU(n)."""
 
     @staticmethod
