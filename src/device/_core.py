@@ -105,7 +105,7 @@ class ModelDeviceHandler:
         self.seeds_torch = gen_seed(size=(nranks,)) if seeds_torch is None else seeds_torch
         self.seeds_np = gen_seed(size=(nranks,)) if seeds_np is None else seeds_np
 
-        if len(seeds_np) != nranks or len(seeds_torch) != nranks:
+        if len(self.seeds_np) != nranks or len(self.seeds_torch) != nranks:
             raise ValueError("Number of seeds does not equal nranks.")
 
         wrapped_fn = DistributedFunc(fn)
@@ -135,7 +135,7 @@ class DistributedFunc:
         seed_np = seeds_np[rank]
         seed_torch = seeds_torch[rank]
 
-        model.device_handler.distributedto(rank, nranks,
+        model.device_handler.distributedto(rank, nranks=nranks,
                 seed_np=seed_np, seed_torch=seed_torch, master_port=master_port
                 )
         model.device_handler.makesuredistributed(rank)

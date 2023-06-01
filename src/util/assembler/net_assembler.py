@@ -71,6 +71,11 @@ class NetAssembler:
         mydict.update(kwargs)
         return SU2RQSplineBlock_(net1, net2, mask=self.mask, **mydict)
 
+    def su3_spline_(self, net1, net2, **kwargs):
+        mydict = dict(xlims=[(0, 1), (-np.pi, np.pi)], ylims=[(0, 1), (-np.pi, np.pi)], boundaries=['none', 'periodic'])
+        mydict.update(kwargs)
+        return SU3RQSplineBlock_(net1, net2, mask=self.mask, **mydict)
+
     def fftnet_(self, **kwargs):
         return FFTNet_.build(self.features_shape, **kwargs)
 
@@ -100,12 +105,10 @@ class NetAssembler:
 
     def add_su2_spline_(self, *args, **kwargs):
         self.nets_.append(self.su2_spline_(*args, **kwargs))
-
-    def su3_spline_(self, net1, net2, **kwargs):
-        mydict = dict(xlims=[(0, 1), (-np.pi, np.pi)], ylims=[(0, 1), (-np.pi, np.pi)], boundaries=['none', 'periodic'])
-        mydict.update(kwargs)
-        return SU3RQSplineBlock_(net1, net2, mask=self.mask, **mydict)
-
+    
+    def add_su3_spline_(self, *args, **kwargs):
+        self.nets_.append(self.su3_spline_(*args, **kwargs))
+    
     def add_fftnet_(self, **kwargs):
         self.nets_.append(self.fftnet_(**kwargs))
 

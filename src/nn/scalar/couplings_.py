@@ -16,6 +16,8 @@ import numpy as np
 from .._core import Module_
 from ...lib.spline import RQSpline
 
+pi = np.pi
+
 
 class CouplingBlock_(Module_):
     """A template class for a block of invertible transformations using a
@@ -279,4 +281,165 @@ class RQSplineBlock_(CouplingBlock_):
                 knots_x=self.knots_x,
                 knots_y=self.knots_y,
                 extrap=self.extrap
+                )
+
+
+class DoubleRQSplineBlock_(CouplingBlock_):
+    """
+    a coupling block with two rational quadratic spline transformations,
+    transforming two different parameters.
+    """
+
+    def __init__(self, net0, net1, *, mask,
+            xlims=[(0, 1), (-pi, pi)], ylims=[(0, 1), (-pi, pi)],
+            knots_x=[None, None], knots_y=[None, None],
+            extraps=[{}, {}], channels_axis=1, label='double_spline_coupling_'
+            ):
+        """
+        Tips on extrapolation:
+        1.  for linear extrapolation on both sides set
+            `extrap=dict(left='linear', right='linear')`
+        2.  for linear extrapolation on right and anti-periodic boundary on left
+            set `extrap={'left': 'anti', 'right': 'linear'}`.
+        """
+
+        super().__init__(net0, net1,
+                mask=mask, channels_axis=channels_axis, label=label
+                )
+
+        self.xlims = xlims
+        self.ylims = ylims
+        self.xwidths = [xlim[1] - xlim[0] for xlim in xlims]
+        self.ywidths = [ylim[1] - ylim[0] for ylim in ylims]
+        self.knots_x = knots_x
+        self.knots_y = knots_y
+        self.extraps = extraps
+
+        self.softmax = torch.nn.Softmax(dim=self.channels_axis)
+        self.softplus = torch.nn.Softplus(beta=np.log(2))
+        # we set the beta of Softplus to log(2) so that self.softplus(0)
+        # returns 1. With this setting it would be easy to set the derivatives
+        # to 1 (with zero inputs).
+    
+    def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
+        out = net(self.preprocess_fz(x_frozen))
+        spline = self.make_spline(out)
+        # below g is the gradient of spline @ x_active
+        fx_active, g = self.apply_spline(self.preprocess(x_active), spline)
+        fx_active, g = self.postprocess(fx_active), self.postprocess(g)
+        fx_active = self.mask.purify(fx_active, channel=which_half)
+        g = self.mask.purify(g, channel=which_half, zero2one=True)
+        return fx_active, log0 + self.sum_density(torch.log(g))
+
+    def half_backward(self, net, *, x_active, x_frozen, which_half, log0=0):
+        out = net(self.preprocess_fz(x_frozen))
+        spline = self.make_spline(out)
+        # below g is the gradient of spline @ x_active
+        fx_active, g = self.apply_spline(self.preprocess(x_active), spline, backward=True)
+        fx_active, g = self.postprocess(fx_active), self.postprocess(g)
+        fx_active = self.mask.purify(fx_active, channel=which_half)
+        g = self.mask.purify(g, channel=which_half, zero2one=True)
+        return fx_active, log0 + self.sum_density(torch.log(g))
+
+    def make_spline(self, out):
+        """splits the out in self.channel_axis into two equal parts and makes two splines,
+        one for each independent parameter of the eigenvectors of the SU(3) matrix.
+        """
+        out_splits = torch.tensor_split(out, sections=2, dim=self.channels_axis)
+        splines = []
+        for i, out in enumerate(out_splits):
+            """construct a spline with number of knots deduced from input `out`.
+            The first knot is always at `(xlim[0], ylim[0])` and the last knot is
+            always at `(xlim[1], ylim[1])`; hence, the number of channels in the
+            input `out` should always be `3 m - 2` unless one fixes knots_x or
+            knots_y. Here, `m` is the number of knots in the spline.
+
+            To clarify more, the input `out` gets split into (m-1, m-1, m) parts
+            corresponding to knots_x, knots_y, and knots_d.
+            When either knots_x or knots_y is already fixed, the input `out` gets
+            split into (m-1, m) parts and if both are fixed ther will be no
+            partitioning.
+            """
+            axis = self.channels_axis
+            knots_x, knots_y = self.knots_x[i], self.knots_y[i]
+            xwidth, ywidth = self.xwidths[i], self.ywidths[i]
+            xlim, ylim = self.xlims[i], self.ylims[i]
+            extrap = self.extraps[i]
+
+            def zeropad(w):
+                pad_shape = list(w.shape)
+                pad_shape[axis] = 1  # note that axis migh be e.g. -1
+                return torch.zeros(pad_shape, device=w.device)
+
+            cumsumsoftmax = lambda w: torch.cumsum(self.softmax(w), dim=axis)
+            to_coord = lambda w: torch.cat((zeropad(w), cumsumsoftmax(w)), dim=axis)
+            to_deriv = lambda d: self.softplus(d) if d is not None else None
+
+            n = out.shape[axis]  # n parameters to specify splines
+            if knots_x is None and knots_y is None:
+                m = (n + 2) // 3
+                x_, y_, d_ = out.split((m-1, m-1, m), dim=axis)
+                knots_x = to_coord(x_) * xwidth + xlim[0]
+                knots_y = to_coord(y_) * ywidth + ylim[0]
+                knots_d = to_deriv(d_)
+            elif knots_x is not None and knots_y is None:
+                m = (n + 2) // 2
+                y_, d_ = out.split((m-1, m), dim=axis)
+                knots_y = to_coord(y_) * ywidth + ylim[0]
+                knots_d = to_deriv(d_)
+            elif knots_x is None and knots_y is not None:
+                m = (n + 2) // 2
+                x_, d_ = out.split((m-1, m), dim=axis)
+                knots_x = to_coord(x_) * xwidth + xlim[0]
+                knots_d = to_deriv(d_)
+            else:
+                knots_d = to_deriv(out)
+
+            kwargs = dict(knots_x=knots_x, knots_y=knots_y, knots_d=knots_d)
+            kwargs.update(dict(knots_axis=axis, extrap=extrap))
+
+            splines.append(RQSpline(**kwargs))
+        return splines
+
+    def apply_spline_old(self, x_actives, splines, backward=False):
+        gs = [None, None]
+        for i in range(2):
+            #if self.xlims[i] != (0, 1):
+            #    # affinely scale x_actives[i] to [0, 1]
+            #    x_actives[i] = x_actives[i] - self.xlims[i][0]
+            #    x_actives[i] = x_actives[i] / (self.xlims[i][1] - self.xlims[i][0])
+            # apply backward or forward spline transformation
+            if backward:
+                x_actives[i], gs[i] = splines[i].backward(x_actives[i], grad=True)
+            else:
+                x_actives[i], gs[i] = splines[i](x_actives[i], grad=True)
+            #if self.ylims[i] != (0, 1):
+            #    # affinely scale x_actives[i] back to self.ylims[i]
+            #    x_actives[i] = x_actives[i] * (self.ylims[i][1] - self.ylims[i][0])
+            #    x_actives[i] = x_actives[i] + self.ylims[i][0]
+        return x_actives, gs
+
+    def apply_spline(self, x_actives, splines, backward=False):
+        x_actives_out = []
+        gs = []
+        for i, x_active in enumerate(x_actives):
+            transformation = splines[i].backward if backward else splines[i]
+            x_active, g = transformation(x_active, grad=True)
+            x_actives_out.append(x_active)
+            gs.append(g)
+        return x_actives_out, gs
+
+    def transfer(self, scale_factor=1, mask=None, **extra):
+        return self.__class__(
+                self.net0.transfer(scale_factor=scale_factor),
+                self.net1.transfer(scale_factor=scale_factor),
+                mask=self.mask if mask is None else mask,
+                label=self.label,
+                zee2sym=self.zee2sym,
+                channels_axis=self.channels_axis,
+                xlim=self.xlims,
+                ylim=self.ylims,
+                knots_x=self.knots_x,
+                knots_y=self.knots_y,
+                extrap=self.extraps
                 )
