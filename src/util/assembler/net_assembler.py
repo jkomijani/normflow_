@@ -8,18 +8,17 @@ from normflow.nn import U1RQSplineBlock_, SU2RQSplineBlock_, SU3RQSplineBlock_
 from normflow.nn import DistConvertor_, Identity_
 from normflow.nn import FFTNet_, MeanFieldNet_, PSDBlock_
 from normflow.nn import ConvAct, LinearAct
-from normflow.mask import Mask, SplitMask
+from normflow.mask import Mask
 
 
 class NetAssembler:
 
-    def __init__(self, features_shape=None, mask_keepshape=None,
-            split_mask=False, split_axis=None):
+    def __init__(self, features_shape=None, mask_keepshape=None, mask=None):
 
         self.features_shape = features_shape
 
-        if split_mask:
-            self.mask = SplitMask(split_axis)
+        if mask is not None:
+            self.mask = mask
         elif (features_shape is None) or (mask_keepshape is None):
             self.mask = None
         else:
