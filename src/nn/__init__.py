@@ -16,3 +16,4 @@ from .matrix.matrix_module_ import MatrixModule_
 from .gauge.plaq_couplings_ import U1RQSplineBlock_, SU2RQSplineBlock_, SU3RQSplineBlock_
 from .gauge.gauge_modulelist_ import GaugeModuleList_
 from .gauge.planar_gauge_module_ import PlanarGaugeModule_
+from .gauge.gauge_module_ import GaugeModule_
