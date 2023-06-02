@@ -13,7 +13,7 @@ the transformation.
 import torch
 import numpy as np
 
-from ..scalar.couplings_ import RQSplineBlock_, DoubleRQSplineBlock_
+from ..scalar.couplings_ import RQSplineBlock_, MultiRQSplineBlock_
 
 pi = np.pi
 
@@ -63,7 +63,7 @@ class U1RQSplineBlock_(RQSplineBlock_):
         return x
 
 
-class SU3RQSplineBlock_(DoubleRQSplineBlock_):
+class SU3RQSplineBlock_(MultiRQSplineBlock_):
     r"""Special case of `RQSplineBlock_` with following assumptions:
     boundaries : list[str]
         Possible values are ['none', 'none'], ['none', 'periodic']
