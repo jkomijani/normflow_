@@ -30,6 +30,19 @@ class Identity_(Module_):
         return x, log0
 
 
+class Clone_(Module_):
+
+    def __init__(self, label='clone_'):
+        super().__init__(label=label)
+
+    def forward(self, x, log0=0, **extra):
+        return x.clone(), log0
+
+    def backward(self, x, log0=0, **extra):
+        return x.clone(), log0
+
+
+
 class ScaleNet_(Module_):
     """Scales the input by a constant factor available as self.logw"""
 
