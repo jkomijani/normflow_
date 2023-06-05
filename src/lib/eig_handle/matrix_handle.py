@@ -24,7 +24,12 @@ class UnMatrixParametrizer:
 
     def __init__(self):
         self.modal_matrix = None
-        self.sorted_phase = None
+        self.phase = None
+        self.order = None  # an object to sort the eigen-phases
+
+    def free_memory(self):
+        self.modal_matrix = None
+        self.phase = None
         self.order = None  # an object to sort the eigen-phases
 
     def matrix2phase_(self, matrix):

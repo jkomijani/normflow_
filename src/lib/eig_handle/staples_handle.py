@@ -4,6 +4,7 @@
 
 
 import torch
+from ..linalg import unique_svd
 
 mul = torch.matmul
 
@@ -39,10 +40,15 @@ class TemplateStaplesHandle:
         if z is None:
             svd, svd_phasor = None, None
         else:
-            svd = torch.linalg.svd(z)
-            svd_phasor = torch.linalg.det(z)**(1/z.shape[-1])
+            svd = unique_svd(z)  # torch.linalg.svd(z)
+            det_z = torch.linalg.det(z)
+            svd_phasor = (det_z / torch.abs(det_z))**(1 / z.shape[-1])
             svd_phasor = svd_phasor.reshape(*z.shape[:-2], 1, 1)
         return svd, svd_phasor
+
+    def free_memory(self):
+        self.staples_svd, self.staples_svd_phasor = None, None
+
 
 
 class WilsonStaplesHandle(TemplateStaplesHandle):

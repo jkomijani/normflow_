@@ -12,6 +12,7 @@ methods handle the Jacobians of the transformation.
 import torch
 
 from ..matrix.matrix_module_ import MatrixModule_
+from ..matrix.stapled_matrix_module_ import StapledMatrixModule_
 
 
 def ddp_wrapper(func):
@@ -53,8 +54,8 @@ class GaugeModule_(MatrixModule_):
          A class instance to handle matrices as expected in `self._kernel`
     """
 
-    def __init__(
-            self, net_, *, mu, nu_list, staples_handle, matrix_handle, mask, label="gauge_"
+    def __init__(self, net_,
+            *, mu, nu_list, staples_handle, matrix_handle, mask, label="gauge_"
             ):
         super().__init__(net_, matrix_handle=matrix_handle, label=label)
         self.mu = mu
@@ -103,12 +104,11 @@ class GaugeModule_(MatrixModule_):
 
 
 # =============================================================================
-class SVDMatrixModule_:
-    pass
-
-
-class SVDGaugeModule_(SVDMatrixModule_):
+class SVDGaugeModule_(StapledMatrixModule_):
     """
+    Similar to GaugeModule_ but used singular values of the staples for
+    processing.
+
     Parameters
     ----------
     net_: instance of Module_ or ModuleList_
@@ -134,52 +134,58 @@ class SVDGaugeModule_(SVDMatrixModule_):
          A class instance to handle matrices as expected in `self._kernel`
     """
 
-    def __init__(
-            self, net_, *, mu, nu_list, staples_handle, matrix_handle, mask, label="gauge_"
+    def __init__(self, net_,
+            *, mu, nu_list, staples_handle, matrix_handle, mask,
+            clean=True, label="gauge_"
             ):
-        super().__init__(net_, matrix_handle=matrix_handle, label=label)
+        super().__init__(
+                net_, matrix_handle=matrix_handle, mask=mask, clean=clean
+                )
         self.mu = mu
         self.nu_list = nu_list
-        self.mask = mask
         self.staples_handle = staples_handle
+        self.label = label
+        self.clean = clean
 
     @ddp_wrapper
     def forward(self, x, log0=0):
         x_mu = x[:, self.mu]
-        x_mu_active, x_mu_frozen = self.mask.split(x_mu)
 
-        staples_frozen, _ = self.mask.split(
-            self.staples_handle.calc_staples(x, mu=self.mu, nu_list=self.nu_list)
-            )
+        staples = self.staples_handle.calc_staples(
+                x, mu=self.mu, nu_list=self.nu_list
+                )
+        # below, sv stands for singular values (corres. to staples)
+        x_mu, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
 
-        x_mu_active, svd_frozen = \
-              self.staples_handle.staple(x_mu_active, staples=staples_frozen)
+        x_mu, logJ = super().forward(x_mu, staples_sv=staples_sv, log0=log0)
 
-        x_mu_active, logJ = super().forward([x_mu_active, svd_frozen], log0)
-        x_mu_active = self.staples_handle.unstaple(x_mu_active)
+        x_mu = self.staples_handle.unstaple(x_mu)
 
-        x_mu = self.mask.cat(x, x_mu_frozen)
         x[:, self.mu] = x_mu
+
+        if self.clean:
+            self.staples_handle.free_memory()
 
         return x, logJ
 
     @ddp_wrapper
     def backward(self, x, log0=0):
         x_mu = x[:, self.mu]
-        x_mu_active, x_mu_frozen = self.mask.split(x_mu)
 
-        staples_frozen, _ = self.mask.split(
-            self.staples_handle.calc_staples(x, mu=self.mu, nu_list=self.nu_list)
-            )
+        staples = self.staples_handle.calc_staples(
+                x, mu=self.mu, nu_list=self.nu_list
+                )
+        # below, sv stands for singular values (corres. to staples)
+        x_mu, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
 
-        x_mu_active, svd_frozen = \
-              self.staples_handle.staple(x_mu_active, staples=staples_frozen)
+        x_mu, logJ = super().backward(x_mu, staples_sv=staples_sv, log0=log0)
 
-        x_mu_active, logJ = super().backward([x_mu_active, svd_frozen], log0)
-        x_mu_active = self.staples_handle.unstaple(x_mu_active)
+        x_mu = self.staples_handle.unstaple(x_mu)
 
-        x_mu = self.mask.cat(x, x_mu_frozen)
         x[:, self.mu] = x_mu
+
+        if self.clean:
+            self.staples_handle.free_memory()
 
         return x, logJ
 
