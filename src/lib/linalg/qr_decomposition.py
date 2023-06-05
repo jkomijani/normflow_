@@ -29,7 +29,7 @@ def haar_qr(x, q_only=False):
     q, r = torch.linalg.qr(x, mode='complete')
     # we now "correct" the phase of columns & rows in q & r, respectively
     d = torch.diagonal(r, dim1=-2, dim2=-1)
-    phase = (d/torch.abs(d))
+    phase = d / torch.abs(d)
     q = q * phase.unsqueeze(-2)  # correct the phase of columns
     if q_only:
         return q

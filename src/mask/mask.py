@@ -112,7 +112,6 @@ class Mask(torch.nn.Module):
         return mask
 
     @staticmethod
-    @staticmethod
     def halfhalf(shape, parity):
         mask = torch.empty(shape, dtype=torch.uint8)
         n = (1 + shape[-1]) // 2  # useful for odd size
