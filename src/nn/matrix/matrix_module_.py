@@ -67,35 +67,3 @@ class MatrixModule_(Module_):
         return self.__class__(self.net_.transfer(**kwargs),
                               matrix_handle=self.matrix_handle, label=self.label
                              )
-
-
-# =============================================================================
-class StapledMatrixModule_(MatrixModule_):
-    """Similar to  MatrixModel_ except that accepts staples_handle as an option.
-    This should be used only for matrix models with fixed staples.
-    For guage theories, the staple_handle should not be passed to the matrix
-    model because staples keep changing.
-    """
-
-    def __init__(self, net_, *, staples_handle, matrix_handle):
-        super().__init__(net_, matrix_handle=matrix_handle)
-        self.staples_handle = staples_handle
-
-    def forward(self, x, **kwargs):
-        x, _ = self.staples_handle.staple(x)
-        x, logJ = super().forward(x, **kwargs)
-        x = self.staples_handle.unstaple(x)
-        return x, logJ
-
-    def backward(self, x, **kwargs):
-        x, _ = self.staples_handle.staple(x)
-        x, logJ = super().backward(x, **kwargs)
-        x = self.staples_handle.unstaple(x)
-        return x, logJ
-
-    def _hack(self, x, **kwargs):
-        x = self.staples_handle.staple(x)
-        stack = [(x, 0)] + super()._hack(x, **kwargs)
-        x, logJ = stack[-1]
-        x = self.staples_handle.unstaple(x)
-        return stack + [(x, 0)]

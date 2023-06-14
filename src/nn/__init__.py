@@ -13,6 +13,7 @@ from .scalar.meanfield_ import MeanFieldNet_
 from .scalar.psd_ import PSDBlock_
 
 from .matrix.matrix_module_ import MatrixModule_
+from .matrix.stapled_matrix_module_ import StapledMatrixModule_
 
 from .gauge.plaq_couplings_ import U1RQSplineBlock_, SU2RQSplineBlock_, SU3RQSplineBlock_
 from .gauge.gauge_modulelist_ import GaugeModuleList_

@@ -16,6 +16,7 @@ class TemplateStaplesHandle:
         self.staples_svd, self.staples_svd_phasor = self._svd(staples)
 
     def staple(self, x, staples=None):
+
         if staples is not None:
             self.staples_svd, self.staples_svd_phasor = self._svd(staples)
 
@@ -26,6 +27,7 @@ class TemplateStaplesHandle:
         return x, svd.S
 
     def unstaple(self, x, staples=None):
+
         if staples is not None:
             self.staples_svd, self.staples_svd_phasor = self._svd(staples)
 
