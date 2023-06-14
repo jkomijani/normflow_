@@ -189,6 +189,29 @@ class SVDGaugeModule_(StapledMatrixModule_):
 
         return x, logJ
 
+    @ddp_wrapper
+    def _hack(self, x, log0=0):
+        """Similar to the forward method, but returns intermediate parts."""
+        x_mu = x[:, self.mu]
+
+        staples = self.staples_handle.calc_staples(
+                x, mu=self.mu, nu_list=self.nu_list
+                )
+        stack = [(x_mu, staples, 0)]
+        x_mu, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        stack.append((x_mu, staples_sv, 0))
+
+        x_mu, logJ = super().forward(x_mu, staples_sv=staples_sv, log0=log0)
+        stack.append((x_mu, staples_sv, logJ))
+
+        x_mu = self.staples_handle.unstaple(x_mu)
+        stack.append((x_mu, 0, 0))
+
+        if self.clean:
+            self.staples_handle.free_memory()
+
+        return stack
+
     def transfer(self, **kwargs):
         return self.__class__(
                 self.net_.transfer(**kwargs),
