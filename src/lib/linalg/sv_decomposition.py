@@ -4,6 +4,8 @@
 
 import torch
 
+from .qr_decomposition import haar_qr
+
 
 class AttributeDict:
     """For accessing a dict key like an attribute."""
@@ -15,7 +17,25 @@ class AttributeDict:
         return str(self.__dict__)
 
 
-def unique_svd(x):
+def svd_squarematrix(matrix):
+    s_sq, v = torch.linalg.eigh(matrix.adjoint() @ matrix)
+    s = torch.sqrt(s_sq)
+    u = matrix @ v @ (torch.diag_embed(1 / s) + 0j)
+    return AttributeDict(U=u, S=s, Vh=v.adjoint())
+
+
+def svd_squarematrix_special(matrix):
+    s_sq, u = torch.linalg.eigh(matrix @ matrix.adjoint())
+    s = torch.sqrt(s_sq)
+    # uvh = (u @ (torch.diag_embed(1 / s) + 0j) @ u.adjoint()) @ matrix
+    uvh = (u @ u.adjoint()) @ matrix
+    vh = u.adjoint() @ uvh
+    return AttributeDict(U=u, S=s, Vh=vh, UVh=uvh)
+
+
+# unique_svd = svd_2x2
+
+def _unique_svd(x):
     """Return a modified version of SVD in which the degrees of redundancy are
     fixed.
     """
@@ -29,16 +49,29 @@ def unique_svd(x):
     return AttributeDict(U=u, S=s, Vh=vh)
 
 
+def unique_svd(x):
+    """Special case where x is a sum of SU(2) matrices, for which one can show
+    x.adjoint() @ x is proportional to the identity matrix.
+    """
+    u, r = haar_qr(x)
+    vh = torch.zeros_like(u)
+    vh[..., 0, 0] = 1.
+    vh[..., 1, 1] = 1.
+    return AttributeDict(U=u, S=torch.linalg.diagonal(r).real, UVh=u, Vh=vh)
+
+
 def svd_2x2(matrix):
     """Use a closed form expression to calculate SVD of a 2x2 matrix."""
-
     s_sq, v = eigh_2x2(matrix.adjoint() @ matrix)
     s = torch.sqrt(s_sq)
     u = matrix @ v @ (torch.diag_embed(1 / s) + 0j)
     return AttributeDict(U=u, S=s, Vh=v.adjoint())
 
 
-def eigh_2x2(matrix):
+# unique_svd = svd_2x2
+
+
+def eigh_2x2(matrix, tol=1e-10):
     """Use a closed form expression to calculate eigenvalues and eigenvectors
     of a 2x2 hermitian matrix.
     """
@@ -60,7 +93,7 @@ def eigh_2x2(matrix):
     eigvec[..., 0, 0] = 1.
     eigvec[..., 1, 1] = 1.
 
-    cond_ = (m10.real**2 + m10.imag**2) > 1e-30
+    cond_ = (m10.real**2 + m10.imag**2) / eigval[..., 1]**2 > tol**2
 
     eigvec[..., 0, 0][cond_] = (eigval[..., 0] - m11)[cond_] + 0j
     eigvec[..., 0, 1][cond_] = m01[cond_]

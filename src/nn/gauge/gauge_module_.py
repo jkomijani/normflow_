@@ -155,11 +155,13 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 x, mu=self.mu, nu_list=self.nu_list
                 )
         # below, sv stands for singular values (corres. to staples)
-        x_mu, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        plaq0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
 
-        x_mu, logJ = super().forward(x_mu, staples_sv=staples_sv, log0=log0)
+        plaq1, logJ = super().forward(plaq0, staples_sv=staples_sv, log0=log0)
 
-        x_mu = self.staples_handle.unstaple(x_mu)
+        x_mu = self.staples_handle.push2links(
+                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                )
 
         x[:, self.mu] = x_mu
 
@@ -176,11 +178,13 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 x, mu=self.mu, nu_list=self.nu_list
                 )
         # below, sv stands for singular values (corres. to staples)
-        x_mu, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        plaq0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
 
-        x_mu, logJ = super().backward(x_mu, staples_sv=staples_sv, log0=log0)
+        plaq1, logJ = super().backward(plaq0, staples_sv=staples_sv, log0=log0)
 
-        x_mu = self.staples_handle.unstaple(x_mu)
+        x_mu = self.staples_handle.push2links(
+                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                )
 
         x[:, self.mu] = x_mu
 

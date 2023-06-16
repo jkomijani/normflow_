@@ -11,37 +11,53 @@ mul = torch.matmul
 
 class TemplateStaplesHandle:
 
-    def __init__(self, staples=None):
-
+    def __init__(self, staples=None, sandwich=False):
+        self.sandwich = sandwich
         self.staples_svd, self.staples_svd_phasor = self._svd(staples)
 
-    def staple(self, x, staples=None):
+    def staple(self, link, staples=None):
 
         if staples is not None:
             self.staples_svd, self.staples_svd_phasor = self._svd(staples)
 
         svd = self.staples_svd
         if svd is not None:
-            x = (svd.Vh @ x @ svd.U) * self.staples_svd_phasor.conj()
+            phasor = self.staples_svd_phasor
+            if self.sandwich:
+                eff_proj_plaq = (svd.Vh @ link @ svd.U) * phasor.conj()
+            else:
+                eff_proj_plaq = link @ (svd.U @ svd.Vh) * phasor.conj()
+        else:
+            eff_proj_plaq = x
 
-        return x, svd.S
+        return eff_proj_plaq, svd.S
 
-    def unstaple(self, x, staples=None):
+    def unstaple(self, eff_proj_plaq, staples=None):
 
         if staples is not None:
             self.staples_svd, self.staples_svd_phasor = self._svd(staples)
 
         svd = self.staples_svd
         if svd is not None:
-            x = (svd.Vh.adjoint() @ x @ svd.U.adjoint()) * self.staples_svd_phasor
+            phasor = self.staples_svd_phasor
+            if self.sandwich:
+                x = (svd.Vh.adjoint() @ eff_proj_plaq @ svd.U.adjoint()) * phasor
+            else:
+                x = eff_proj_plaq @ (svd.U @ svd.Vh).adjoint() * phasor
+        else:
+            x = eff_proj_plaq
 
         return x
+
+    def push2links(self, x, *, eff_proj_plaq_old, eff_proj_plaq_new):
+        return (eff_proj_plaq_new @ eff_proj_plaq_old.adjoint()) @ x
 
     @staticmethod
     def _svd(z):
         if z is None:
             svd, svd_phasor = None, None
         else:
+            # svd = torch.linalg.svd(z)
             svd = unique_svd(z)  # torch.linalg.svd(z)
             det_z = torch.linalg.det(z)
             svd_phasor = (det_z / torch.abs(det_z))**(1 / z.shape[-1])
@@ -125,6 +141,15 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
 
 class U1WilsonStaplesHandle(WilsonStaplesHandle):
     """Properties and methods are chosen to be consistent with SU(n)."""
+
+    def __init__(self):
+        pass
+
+    def staple(self):
+        pass
+
+    def unstaple(self):
+        pass
 
     @staticmethod
     def staple1_rule(a, b, c):
