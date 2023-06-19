@@ -46,7 +46,8 @@ class GaugeAction:
         for mu in range(1, self.ndim):
             for nu in range(mu):
                 action += torch.sum(self.calc_plaq(cfgs, mu=mu, nu=nu), dim=dim)
-        action *= -self.beta
+        nc = int(cfgs.shape[-1])  # number of colors
+        action *= (-self.beta / nc)
         if subtractive_term is not None:
             action -= subtractive_term
         return action
@@ -65,7 +66,8 @@ class GaugeAction:
         for mu in range(1, self.ndim):
             for nu in range(mu):
                 action_density += self.calc_plaq(cfgs, mu=mu, nu=nu)
-        action_density *= -self.beta
+        nc = int(cfgs.shape[-1])  # number of colors
+        action_density *= (-self.beta / nc)
         if subtractive_term is not None:
             action_density -= subtractive_term
         return action_density
@@ -117,3 +119,7 @@ class U1GaugeAction(GaugeAction):
 
 def calc_trace(x):
     return torch.sum(torch.diagonal(x, dim1=-2, dim2=-1), dim=-1)
+
+
+def calc_reduced_trace(x):  # reduced trace = 1/n trace()
+    return torch.mean(torch.diagonal(x, dim1=-2, dim2=-1), dim=-1)
