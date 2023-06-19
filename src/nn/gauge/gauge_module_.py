@@ -155,6 +155,7 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 x, mu=self.mu, nu_list=self.nu_list
                 )
         # below, sv stands for singular values (corres. to staples)
+        # plaq, means effective open plaquettes, which are SU(n) matrices.
         plaq0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
 
         plaq1, logJ = super().forward(plaq0, staples_sv=staples_sv, log0=log0)
@@ -201,15 +202,21 @@ class SVDGaugeModule_(StapledMatrixModule_):
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
-        stack = [(x_mu, staples, 0)]
-        x_mu, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
-        stack.append((x_mu, staples_sv, 0))
+        stack = [(x_mu, staples)]
+        # below, sv stands for singular values (corres. to staples)
+        plaq0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        stack.append((plaq0, staples_sv))
 
-        x_mu, logJ = super().forward(x_mu, staples_sv=staples_sv, log0=log0)
-        stack.append((x_mu, staples_sv, logJ))
+        plaq1, logJ = super().forward(plaq0, staples_sv=staples_sv, log0=log0)
+        stack.append(super()._hack(plaq0, staples_sv=staples_sv))
+        stack.append((plaq1, staples_sv, logJ))
 
-        x_mu = self.staples_handle.unstaple(x_mu)
-        stack.append((x_mu, 0, 0))
+        x_mu = self.staples_handle.push2links(
+                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                )
+        stack.append((x_mu,))
+
+        x[:, self.mu] = x_mu
 
         if self.clean:
             self.staples_handle.free_memory()

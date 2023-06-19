@@ -55,6 +55,10 @@ class StapledMatrixModule_(Module_):
         """
         # First, parametrize the (eigenvalues of) matrix x
         param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
+        # The channel axis, where the parameterz are listed, should be moved
+        # from -1 to 1
+        staples_sv = torch.movedim(staples_sv, -1, 1)
+        param = torch.movedim(param, -1, 1)
 
         # Now, mask both eigenvalues and staples singular-values
         param_active, param_frozen = self.mask.split(param)
@@ -62,15 +66,11 @@ class StapledMatrixModule_(Module_):
         # the staples corresponding to param_active do not vary when
         # param_active vary; that's why they are tagged as frozen.
 
-        # The channel axis, where the parameterz are listed, should be moved
-        # from -1 to 1
-        sv_frozen = torch.movedim(sv_frozen, -1, 1)
-        param_active = torch.movedim(param_active, -1, 1)
         out, logJ_par2par = net_method_([param_active, sv_frozen])
         param_active = out[0]  # sv_frozen = out[1]
-        param_active = torch.movedim(param_active, 1, -1)  # channel axis to -1
 
         param = self.mask.cat(param_active, param_frozen)
+        param = torch.movedim(param, 1, -1)  # channel axis to -1
 
         x, logJ_par2mat = self.matrix_handle.param2matrix_(param)
 
@@ -81,7 +81,7 @@ class StapledMatrixModule_(Module_):
 
         return x, log0 + logJ
 
-    def _hack(self, x, log0=0, reduce_=False):
+    def _hack(self, x, *, staples_sv, log0=0, reduce_=False):
         """Similar to the forward method, but returns intermediate parts too."""
         param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
         stack = [(param, logJ_mat2par)]
@@ -90,7 +90,7 @@ class StapledMatrixModule_(Module_):
         sv_frozen, _ = self.mask.split(staples_sv)
         sv_frozen = torch.movedim(sv_frozen, -1, 1)
         param_active = torch.movedim(param_active, -1, 1)
-        out, logJ_par2par = net_method_([param_active, sv_frozen])
+        out, logJ_par2par = self.net_([param_active, sv_frozen])
         param_active = out[0]  # sv_frozen = out[1]
         param_active = torch.movedim(param_active, 1, -1)  # channel axis to -1
         param = self.mask.cat(param_active, param_frozen)

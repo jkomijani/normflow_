@@ -71,7 +71,8 @@ class TemplateStaplesHandle:
 
 class WilsonStaplesHandle(TemplateStaplesHandle):
 
-    def calc_staples(self, cfgs, *, mu, nu_list):
+    @classmethod
+    def calc_staples(cls, cfgs, *, mu, nu_list):
         """Calculate and return the staples from the Wilson gauge action.
 
         Stables of the Wilson gauge action in any plane are shown in the
@@ -94,10 +95,11 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
             Direction of the links with them the staples are associated.
         """
         return sum(
-            [self.calc_planar_staples(cfgs, mu=mu, nu=nu) for nu in nu_list]
+            [cls.calc_planar_staples(cfgs, mu=mu, nu=nu) for nu in nu_list]
             )
 
-    def calc_planar_staples(self, cfgs, *, mu, nu):
+    @classmethod
+    def calc_planar_staples(cls, cfgs, *, mu, nu, up_only=False):
         """Similar to calc_staples, except that the staples are calculated on
         mu-nu plane.
         """
@@ -116,11 +118,15 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
         c = x_nu
         a = torch.roll(c, -1, dims=1 + mu)
         b = torch.roll(x_mu, -1, dims=1 + nu)
+
+        if up_only:
+            return cls.staple1_rule(a, b, c)
+
         e = torch.roll(x_mu, +1, dims=1 + nu)
         f = torch.roll(c, +1, dims=1 + nu)
         d = torch.roll(a, +1, dims=1 + nu)
 
-        return self.staple1_rule(a, b, c) + self.staple2_rule(d, e, f)
+        return cls.staple1_rule(a, b, c) + cls.staple2_rule(d, e, f)
 
     @staticmethod
     def staple1_rule(a, b, c):
