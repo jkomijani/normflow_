@@ -42,11 +42,6 @@ class GaugeModule_(MatrixModule_):
     nu_list : list of int
         (in combination w/ mu) specifies the plane of staples to be calculated
     
-    mask : instance of Mask
-        used for partitioning the links and their corresponding staples to
-        active and frozen. Note that mask should be instantiated with e.g.
-        split_form='directional_even-odd'.
-
     staple_handle: class instance
          A class instance to handle matrices as expected in `self._kernel`
 
@@ -55,48 +50,95 @@ class GaugeModule_(MatrixModule_):
     """
 
     def __init__(self, net_,
-            *, mu, nu_list, staples_handle, matrix_handle, mask, label="gauge_"
+            *, mu, nu_list, staples_handle, matrix_handle,
+            clean=True, label="gauge_"
             ):
-        super().__init__(net_, matrix_handle=matrix_handle, label=label)
+        super().__init__(net_, matrix_handle=matrix_handle)
         self.mu = mu
         self.nu_list = nu_list
-        self.mask = mask
         self.staples_handle = staples_handle
+        self.label = label
+        self.clean = clean
 
     @ddp_wrapper
     def forward(self, x, log0=0):
-        staples = \
-            self.staples_handle.calc_staples(x, mu=self.mu, nu_list=self.nu_list)
-
         x_mu = x[:, self.mu]
-        x_mu, _ = self.staples_handle.staple(x_mu, staples=staples)
-        x_mu, logJ = super().forward(x_mu, log0)
-        x_mu = self.staples_handle.unstaple(x_mu)
+
+        staples = self.staples_handle.calc_staples(
+                x, mu=self.mu, nu_list=self.nu_list
+                )
+        # plaq, means effective open plaquettes, which are SU(n) matrices.
+        plaq0, _ = self.staples_handle.staple(x_mu, staples=staples)
+
+        plaq1, logJ = super().forward(plaq0, log0=log0)
+
+        x_mu = self.staples_handle.push2links(
+                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                )
 
         x[:, self.mu] = x_mu
+
+        if self.clean:
+            self.staples_handle.free_memory()
 
         return x, logJ
 
     @ddp_wrapper
     def backward(self, x, log0=0):
-        staples = \
-            self.staples_handle.calc_staples(x, mu=self.mu, nu_list=self.nu_list)
-
         x_mu = x[:, self.mu]
-        x_mu, _ = self.staples_handle.staple(x_mu, staples=staples)
-        x_mu, logJ = super().backward(x_mu, log0)
-        x_mu = self.staples_handle.unstaple(x_mu)
+
+        staples = self.staples_handle.calc_staples(
+                x, mu=self.mu, nu_list=self.nu_list
+                )
+        plaq0, _ = self.staples_handle.staple(x_mu, staples=staples)
+
+        plaq1, logJ = super().backward(plaq0, log0=log0)
+
+        x_mu = self.staples_handle.push2links(
+                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                )
 
         x[:, self.mu] = x_mu
 
+        if self.clean:
+            self.staples_handle.free_memory()
+
         return x, logJ
+
+    @ddp_wrapper
+    def _hack(self, x, log0=0):
+        """Similar to the forward method, but returns intermediate parts."""
+        x_mu = x[:, self.mu]
+
+        staples = self.staples_handle.calc_staples(
+                x, mu=self.mu, nu_list=self.nu_list
+                )
+        stack = [(x_mu, staples)]
+        # below, sv stands for singular values (corres. to staples)
+        plaq0, _ = self.staples_handle.staple(x_mu, staples=staples)
+        stack.append((plaq0,))
+
+        plaq1, logJ = super().forward(plaq0, log0=log0)
+        stack.append(super()._hack(plaq0))
+        stack.append((plaq1, logJ))
+
+        x_mu = self.staples_handle.push2links(
+                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                )
+        stack.append((x_mu,))
+
+        x[:, self.mu] = x_mu
+
+        if self.clean:
+            self.staples_handle.free_memory()
+
+        return stack
 
     def transfer(self, **kwargs):
         return self.__class__(
                 self.net_.transfer(**kwargs),
                 mu=self.mu,
                 nu_list=self.nu_list,
-                mask=self.mask,
                 staples_handle=self.staples_handle,
                 matrix_handle=self.matrix_handle,
                 label=self.label
