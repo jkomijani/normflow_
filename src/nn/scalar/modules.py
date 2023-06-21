@@ -8,7 +8,7 @@ import copy
 import numpy as np
 
 from ...lib.spline import RQSpline
-
+from .conv4d import Conv4d
 
 class Module(torch.nn.Module):
 
@@ -66,6 +66,8 @@ class ConvAct(Module):
             Conv = torch.nn.Conv2d
         elif conv_dim == 3:
             Conv = torch.nn.Conv3d
+        elif conv_dim == 4:
+            Conv = Conv4d
 
         net = []
         for i, act in enumerate(acts):
