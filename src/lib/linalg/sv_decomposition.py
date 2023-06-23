@@ -53,11 +53,15 @@ def unique_svd(x):
     """Special case where x is a sum of SU(2) matrices, for which one can show
     x.adjoint() @ x is proportional to the identity matrix.
     """
-    u, r = haar_qr(x)
+    # u, r = haar_qr(x)
+    s = (torch.abs(torch.linalg.det(x))**0.5).unsqueeze(-1)
+    u = x / s.unsqueeze(-1)
     vh = torch.zeros_like(u)
     vh[..., 0, 0] = 1.
     vh[..., 1, 1] = 1.
-    return AttributeDict(U=u, S=torch.linalg.diagonal(r).real, UVh=u, Vh=vh)
+    # return AttributeDict(U=u, S=torch.linalg.diagonal(r).real, UVh=u, Vh=vh)
+    return AttributeDict(U=u, S=s, UVh=u, Vh=vh)
+
 
 
 def svd_2x2(matrix):

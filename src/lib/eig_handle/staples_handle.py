@@ -9,6 +9,7 @@ from ..linalg import unique_svd
 mul = torch.matmul
 
 
+# =============================================================================
 class TemplateStaplesHandle:
 
     def __init__(self, staples=None, sandwich=False):
@@ -27,10 +28,13 @@ class TemplateStaplesHandle:
                 eff_proj_plaq = (svd.Vh @ link @ svd.U) * phasor.conj()
             else:
                 eff_proj_plaq = link @ (svd.U @ svd.Vh) * phasor.conj()
+            phasor = phasor.squeeze(-1)
+            s_and_phase = torch.cat([svd.S, phasor.real, phasor.imag], -1)
         else:
             eff_proj_plaq = x
+            s_and_phase = svd.S
 
-        return eff_proj_plaq, svd.S
+        return eff_proj_plaq, s_and_phase
 
     def unstaple(self, eff_proj_plaq, staples=None):
 
@@ -68,7 +72,7 @@ class TemplateStaplesHandle:
         self.staples_svd, self.staples_svd_phasor = None, None
 
 
-
+# =============================================================================
 class WilsonStaplesHandle(TemplateStaplesHandle):
 
     @classmethod
@@ -145,6 +149,7 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
         return mul(mul(e, d).adjoint(), f)
 
 
+# =============================================================================
 class U1WilsonStaplesHandle(WilsonStaplesHandle):
     """Properties and methods are chosen to be consistent with SU(n)."""
 
