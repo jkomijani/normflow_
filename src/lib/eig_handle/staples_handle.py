@@ -27,16 +27,19 @@ class TemplateStaplesHandle:
             if self.sandwich:
                 eff_proj_plaq = (svd.Vh @ link @ svd.U) * phasor.conj()
             else:
-                eff_proj_plaq = link @ (svd.U @ svd.Vh) * phasor.conj()
+                # eff_proj_plaq = link @ (svd.U @ svd.Vh) * phasor.conj()
+                eff_proj_plaq = link @ (svd.UVh * phasor.conj())
             phasor = phasor.squeeze(-1)
-            s_and_phase = torch.cat([svd.S, phasor.real, phasor.imag], -1)
+            # s_and_phase = torch.cat([svd.S, phasor.real, phasor.imag], -1)
         else:
             eff_proj_plaq = x
-            s_and_phase = svd.S
+            # s_and_phase = svd.S
 
-        return eff_proj_plaq, s_and_phase
+        # return eff_proj_plaq, svd.S  # s_and_phase
+        return eff_proj_plaq, svd.S[..., :1]  # s_and_phase
 
     def unstaple(self, eff_proj_plaq, staples=None):
+        # see self.push2links, which is used instead of unstaple
 
         if staples is not None:
             self.staples_svd, self.staples_svd_phasor = self._svd(staples)
@@ -47,14 +50,18 @@ class TemplateStaplesHandle:
             if self.sandwich:
                 x = (svd.Vh.adjoint() @ eff_proj_plaq @ svd.U.adjoint()) * phasor
             else:
-                x = eff_proj_plaq @ (svd.U @ svd.Vh).adjoint() * phasor
+                # x = eff_proj_plaq @ (svd.U @ svd.Vh).adjoint() * phasor
+                x = eff_proj_plaq @ (svd.UVh @ phasor).adjoint()
         else:
             x = eff_proj_plaq
 
         return x
 
     def push2links(self, x, *, eff_proj_plaq_old, eff_proj_plaq_new):
-        return (eff_proj_plaq_new @ eff_proj_plaq_old.adjoint()) @ x
+        if eff_proj_plaq_old is None:
+            return  eff_proj_plaq_new @ x
+        else:
+            return (eff_proj_plaq_new @ eff_proj_plaq_old.adjoint()) @ x
 
     @staticmethod
     def _svd(z):
@@ -63,8 +70,10 @@ class TemplateStaplesHandle:
         else:
             # svd = torch.linalg.svd(z)
             svd = unique_svd(z)  # torch.linalg.svd(z)
-            det_z = torch.linalg.det(z)
-            svd_phasor = (det_z / torch.abs(det_z))**(1 / z.shape[-1])
+            # det_z = torch.linalg.det(z)
+            # svd_phasor = (det_z / torch.abs(det_z))**(1 / z.shape[-1])
+            # svd_phasor = torch.det(svd.U @ svd.Vh)**(1 / z.shape[-1])
+            svd_phasor = torch.det(svd.UVh)**(1 / z.shape[-1])
             svd_phasor = svd_phasor.reshape(*z.shape[:-2], 1, 1)
         return svd, svd_phasor
 
