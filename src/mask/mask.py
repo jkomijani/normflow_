@@ -57,17 +57,17 @@ class Mask(torch.nn.Module):
     """
 
     def __init__(self, shape=(2, 2), parity=0, keepshape=True,
-            split_form='even-odd', cat_form='even-odd', mu=None
+            split_form='even-odd', mu=None
             ):
         """
         Parameters
         ----------
         split_form : str
-            Can be either of 'even-odd', 'half-half', or 'directional_even-odd'
-        cat_form : str
-            Relevant only if keepshape is False
+            Can be either of 'even-odd', 'half-half', 'directional_even-odd',
+            or 'directional_strip'
         mu : int
-            Used only with `split_form = directional_even-odd`
+            Used only with `split_form` set to directional_even-odd or
+            directional_strip
         keepshape : boolean (optional)
             Allows to have different masks for splitting and concatenating
             (default is True)
@@ -81,12 +81,12 @@ class Mask(torch.nn.Module):
                 return self.evenodd(shape, parity)
             elif split_form == 'half-half':
                 return self.halfhalf(shape, parity)
-            if split_form == 'directional_even-odd':
+            elif split_form == 'directional_even-odd':
                 return self.directional_evenodd(shape, parity, mu=mu)
+            elif split_form == 'directional_strip':
+                return self.directional_strip(shape, parity, mu=mu)
 
         self.register_buffer('mask', get_mask())
-        if not keepshape:
-            self.register_buffer('cat_mask', get_mask())
         self.shape = shape
         if keepshape:
             self.split = self._sameshape_split
@@ -111,6 +111,14 @@ class Mask(torch.nn.Module):
             mask[ind] = (sum(ind) + parity - ind[mu]) % 2
         return mask
 
+    @staticmethod
+    def directional_strip(shape, parity, *, mu):
+        mask = torch.empty(shape, dtype=torch.uint8)
+        for ind in itertools.product(*tuple([range(l) for l in shape])):
+            mask[ind] = (parity + ind[mu]) % 2
+        return mask
+
+    @staticmethod
     @staticmethod
     def halfhalf(shape, parity):
         mask = torch.empty(shape, dtype=torch.uint8)
@@ -150,7 +158,7 @@ class Mask(torch.nn.Module):
     def _anothershape_cat(self, x_0, x_1):
         # Two inputs' shape : x_i.shape is [..., product(self.mask.shape)/2]
         # Output's shape: x.shape is [..., self.mask.shape]
-        mask = self.cat_mask
+        mask = self.mask
         x_shape = (*x_0.shape[:-1], *self.shape)
         x = torch.empty(*x_shape)
         x[..., mask == 0] = x_0
@@ -159,3 +167,25 @@ class Mask(torch.nn.Module):
 
     def _anothershape_purify(self, x_chnl, channel, zero2one=False):
         return x_chnl
+
+
+class DoubleMask:
+
+    def __init__(self, *, mask0, mask1):
+        self.mask0 = mask0
+        self.mask1 = mask1
+
+    def split(self, x):
+        x_0, x_1 = self.mask0.split(x)
+        x_0, self.x_passive = self.mask1.split(x_0)
+        return x_0, x_1
+
+    def cat(self, x_0, x_1):
+        x_0 = self.mask1.cat(x_0, self.x_passive)
+        return self.mask0.cat(x_0, x_1)
+
+    def purify(self, x_chnl, channel, **kwargs):
+        return self.mask1.purify(
+                self.mask0.purify(x_chnl, channel, **kwargs),
+                channel, **kwargs
+                )
