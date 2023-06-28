@@ -27,13 +27,13 @@ def svd_squarematrix(matrix):
 def svd_squarematrix_special(matrix):
     s_sq, u = torch.linalg.eigh(matrix @ matrix.adjoint())
     s = torch.sqrt(s_sq)
-    # uvh = (u @ (torch.diag_embed(1 / s) + 0j) @ u.adjoint()) @ matrix
-    uvh = (u @ u.adjoint()) @ matrix
+    uvh = torch.matmul(u, s.unsqueeze(-1) * u.adjoint()) @ matrix
     vh = u.adjoint() @ uvh
     return AttributeDict(U=u, S=s, Vh=vh, UVh=uvh)
 
 
-# unique_svd = svd_2x2
+# unique_svd = svd_squarematrix_special
+
 
 def _unique_svd(x):
     """Return a modified version of SVD in which the degrees of redundancy are
@@ -61,7 +61,6 @@ def unique_svd(x):
     vh[..., 1, 1] = 1.
     # return AttributeDict(U=u, S=torch.linalg.diagonal(r).real, UVh=u, Vh=vh)
     return AttributeDict(U=u, S=s, UVh=u, Vh=vh)
-
 
 
 def svd_2x2(matrix):

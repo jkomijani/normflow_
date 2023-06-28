@@ -68,12 +68,13 @@ class GaugeModule_(MatrixModule_):
                 x, mu=self.mu, nu_list=self.nu_list
                 )
         # plaq, means effective open plaquettes, which are SU(n) matrices.
-        plaq0, _ = self.staples_handle.staple(x_mu, staples=staples)
+        plaq_0, _ = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq1, logJ = super().forward(plaq0, log0=log0)
+        plaq_1, logJ = super().forward(plaq_0, log0, reduce_=True)
+        plaq_0 = None  # because reduce_ is set to True above
 
         x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
                 )
 
         x[:, self.mu] = x_mu
@@ -90,12 +91,13 @@ class GaugeModule_(MatrixModule_):
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
-        plaq0, _ = self.staples_handle.staple(x_mu, staples=staples)
+        plaq_0, _ = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq1, logJ = super().backward(plaq0, log0=log0)
+        plaq_1, logJ = super().forward(plaq_0, log0, reduce_=True)
+        plaq_0 = None  # because reduce_ is set to True above
 
         x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
                 )
 
         x[:, self.mu] = x_mu
@@ -115,15 +117,16 @@ class GaugeModule_(MatrixModule_):
                 )
         stack = [(x_mu, staples)]
         # below, sv stands for singular values (corres. to staples)
-        plaq0, _ = self.staples_handle.staple(x_mu, staples=staples)
-        stack.append((plaq0,))
+        plaq_0, _ = self.staples_handle.staple(x_mu, staples=staples)
+        stack.append((plaq_0,))
 
-        plaq1, logJ = super().forward(plaq0, log0=log0)
-        stack.append(super()._hack(plaq0))
-        stack.append((plaq1, logJ))
+        plaq_1, logJ = super().forward(plaq_0, log0, reduce_=True)
+        plaq_0 = None  # because reduce_ is set to True above
+        stack.append(super()._hack(plaq_0))
+        stack.append((plaq_1, logJ))
 
         x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
                 )
         stack.append((x_mu,))
 
@@ -198,12 +201,15 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 )
         # below, sv stands for singular values (corres. to staples)
         # plaq, means effective open plaquettes, which are SU(n) matrices.
-        plaq0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        plaq_0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq1, logJ = super().forward(plaq0, staples_sv=staples_sv, log0=log0)
+        plaq_1, logJ = super().forward(
+                plaq_0, staples_sv=staples_sv, log0=log0, reduce_=True
+                )
+        plaq_0 = None  # because reduce_ is set to True above
 
         x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
                 )
 
         x[:, self.mu] = x_mu
@@ -221,12 +227,15 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 x, mu=self.mu, nu_list=self.nu_list
                 )
         # below, sv stands for singular values (corres. to staples)
-        plaq0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        plaq_0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq1, logJ = super().backward(plaq0, staples_sv=staples_sv, log0=log0)
+        plaq_1, logJ = super().backward(
+                plaq_0, staples_sv=staples_sv, log0=log0, reduce_=True
+                )
+        plaq_0 = None  # because reduce_ is set to True above
 
         x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
                 )
 
         x[:, self.mu] = x_mu
@@ -246,15 +255,18 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 )
         stack = [(x_mu, staples)]
         # below, sv stands for singular values (corres. to staples)
-        plaq0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
-        stack.append((plaq0, staples_sv))
+        plaq_0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        stack.append((plaq_0, staples_sv))
 
-        plaq1, logJ = super().forward(plaq0, staples_sv=staples_sv, log0=log0)
-        stack.append(super()._hack(plaq0, staples_sv=staples_sv))
-        stack.append((plaq1, staples_sv, logJ))
+        plaq_1, logJ = super().forward(
+                plaq_0, staples_sv=staples_sv, log0=log0, reduce_=True
+                )
+        plaq_0 = None  # because reduce_ is set to True above
+        stack.append(super()._hack(plaq_0, staples_sv=staples_sv))
+        stack.append((plaq_1, staples_sv, logJ))
 
         x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq0, eff_proj_plaq_new=plaq1
+                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
                 )
         stack.append((x_mu,))
 

@@ -30,17 +30,19 @@ class StapledMatrixModule_(Module_):
         self.matrix_handle = matrix_handle
         self.clean = clean
 
-    def forward(self, x, *, staples_sv, log0=0):
+    def forward(self, x, *, staples_sv, log0=0, reduce_=False):
         return self._kernel(
-                self.net_.forward, x=x, staples_sv=staples_sv, log0=log0
+                self.net_.forward,
+                x=x, staples_sv=staples_sv, log0=log0, reduce_=reduce_
                 )
 
-    def backward(self, x, *, staples_sv, log0=0):
+    def backward(self, x, *, staples_sv, log0=0, reduce_=False):
         return self._kernel(
-                self.net_.backward, x=x, staples_sv=staples_sv, log0=log0
+                self.net_.backward,
+                x=x, staples_sv=staples_sv, log0=log0, reduce_=reduce_
                 )
 
-    def _kernel(self, net_method_, *, x, staples_sv, log0=0):
+    def _kernel(self, net_method_, *, x, staples_sv, log0=0, reduce_=False):
         """Return the transformed x and its Jacobian.
 
         Here are the steps:
@@ -72,7 +74,7 @@ class StapledMatrixModule_(Module_):
         param = self.mask.cat(param_active, param_frozen)
         param = torch.movedim(param, 1, -1)  # channel axis to -1
 
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param)
+        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
 
         logJ = logJ_mat2par + logJ_par2par + logJ_par2mat
 
@@ -96,7 +98,7 @@ class StapledMatrixModule_(Module_):
         param = self.mask.cat(param_active, param_frozen)
         stack.append((param, logJ_par2par))
 
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param)
+        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
         stack.append((x, logJ_par2mat))
         if self.clean:
             self.matrix_handle.free_memory()
