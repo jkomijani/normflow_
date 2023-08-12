@@ -17,7 +17,6 @@ from ..linalg import eigsu  # eig for speical unitray matrices
 
 eigu = eigsu  # For now we deal with SU(n), but later we may need to change it
 
-
 mul = torch.matmul
 pi = np.pi
 

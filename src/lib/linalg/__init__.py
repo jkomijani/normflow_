@@ -9,9 +9,8 @@ except:
     print("Warning: Could not locate torch_linalg_ext; uses torch.linalg")
     from torch.linalg import svd, eigh, eig as eigsu
 
+
 from .qr_decomposition import haar_qr, haar_sqr
 
 from .euler_angles import su2_to_euler_angles
 from .euler_angles import euler_angles_to_su2
-
-from .projection import project_su2
