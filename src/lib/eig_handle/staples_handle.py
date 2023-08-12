@@ -4,7 +4,7 @@
 
 
 import torch
-from ..linalg import unique_svd
+from ..linalg import svd
 
 mul = torch.matmul
 
@@ -12,56 +12,45 @@ mul = torch.matmul
 # =============================================================================
 class TemplateStaplesHandle:
 
-    def __init__(self, staples=None, sandwich=False):
-        self.sandwich = sandwich
-        self.staples_svd, self.staples_svd_phasor = self._svd(staples)
+    def __init__(self, staples=None):
+        self.staples_svd = None if staples is None else svd(staples)
 
     def staple(self, link, staples=None):
-
+        """
+        Return "stapled links" or "effective projected plaquettes" that are
+        defined as the links multiplied by SU(n) matrices obtained by applying
+        SVD on the staples.
+        If staples are not provided the fixed staples used when the class was
+        instantiated will be used.
+        """
         if staples is not None:
-            self.staples_svd, self.staples_svd_phasor = self._svd(staples)
+            self.staples_svd = svd(staples)
 
-        svd = self.staples_svd
-        if svd is not None:
-            phasor = self.staples_svd_phasor
-            if self.sandwich:
-                eff_proj_plaq = (svd.Vh @ link @ svd.U) * phasor.conj()
-            else:
-                # eff_proj_plaq = link @ (svd.U @ svd.Vh) * phasor.conj()
-                eff_proj_plaq = link @ (svd.UVh * phasor.conj())
-            phasor = phasor.squeeze(-1)
-            # s_and_phase = torch.cat([svd.S, phasor.real, phasor.imag], -1)
-        else:
-            eff_proj_plaq = x
-            # s_and_phase = svd.S
+        svd_ = self.staples_svd
+        if svd_ is None:
+            raise Exception("staples are not defined!")
 
-        # return eff_proj_plaq, svd.S  # s_and_phase
-        return eff_proj_plaq, svd.S[..., :1]  # s_and_phase
+        eff_proj_plaq = link @ svd_.sUVh
+        return eff_proj_plaq, (svd_.S, svd_.det_uvh.squeeze(-1))
 
     def unstaple(self, eff_proj_plaq, staples=None):
         # see self.push2links, which is used instead of unstaple
 
         if staples is not None:
-            self.staples_svd, self.staples_svd_phasor = self._svd(staples)
+            self.staples_svd = svd(staples)
 
-        svd = self.staples_svd
-        if svd is not None:
-            phasor = self.staples_svd_phasor
-            if self.sandwich:
-                x = (svd.Vh.adjoint() @ eff_proj_plaq @ svd.U.adjoint()) * phasor
-            else:
-                # x = eff_proj_plaq @ (svd.U @ svd.Vh).adjoint() * phasor
-                x = eff_proj_plaq @ (svd.UVh @ phasor).adjoint()
-        else:
-            x = eff_proj_plaq
+        svd_ = self.staples_svd
+        if svd_ is None:
+            raise Exception("staples are not defined!")
 
-        return x
+        link = eff_proj_plaq @ svd_.sUVh.adjoint()
+        return link
 
-    def push2links(self, x, *, eff_proj_plaq_old, eff_proj_plaq_new):
+    def push2links(self, link, *, eff_proj_plaq_old, eff_proj_plaq_new):
         if eff_proj_plaq_old is None:
-            return  eff_proj_plaq_new @ x
+            return  eff_proj_plaq_new @ link
         else:
-            return (eff_proj_plaq_new @ eff_proj_plaq_old.adjoint()) @ x
+            return (eff_proj_plaq_new @ eff_proj_plaq_old.adjoint()) @ link
 
     @staticmethod
     def _svd(z):
@@ -78,7 +67,7 @@ class TemplateStaplesHandle:
         return svd, svd_phasor
 
     def free_memory(self):
-        self.staples_svd, self.staples_svd_phasor = None, None
+        self.staples_svd = None
 
 
 # =============================================================================
