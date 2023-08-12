@@ -5,8 +5,6 @@ import torch
 import numpy as np
 import copy
 
-from normflow import torch_device
-
 from ..lib.combo import estimate_logz, fmt_val_err
 from ..lib.stats import Resampler
 
@@ -72,7 +70,7 @@ class MCMCSampler:
         # 2.3) Handle the rest items by calculating accept_ind
         accept_ind = Metropolis.calc_accept_indices(accept_seq)
 
-        accept_ind_torch = torch.LongTensor(accept_ind).to(torch_device)
+        accept_ind_torch = torch.LongTensor(accept_ind).to(y.device)
         func = lambda x: x.index_select(0, accept_ind_torch)
         y, logq, logp = func(y), func(logq), func(logp)
 
@@ -316,25 +314,65 @@ class Metropolis:
             status[i] = rand_arr[i] < (logqp_ref - logqp_i)
             if status[i]:
                 logqp_ref = logqp_i
-        return status
+        return status  # also called accept_seq
 
-    @staticmethod
     def calc_accept_indices(accept_seq):
         """Return indices of output of Metropolis-Hasting accept/reject step."""
-        indices = np.zeros(len(accept_seq), dtype=int)
+        indices = np.arange(len(accept_seq))
         cntr = 0
         for ind, accept in enumerate(accept_seq):
             if accept:
-                cntr = ind
-            indices[ind] = cntr
+                cntr = ind  # update `cntr`
+            else:
+                indices[ind] = cntr  # reduce the index to the `cntr` value
         return indices
 
     @staticmethod
-    def calc_accept_count(status):
+    def calc_accept_count(accept_seq):
         """Count how many repetition till next accepted configuration."""
-        ind = np.where(status)[0]  # index of True ones
-        mul = ind[1:] - ind[:-1]  # count except for the last
-        return ind[0], list(mul) + [len(states) - ind[-1]]
+        ind = np.where(accept_seq)[0]  # index of True ones
+        multiplicity = ind[1:] - ind[:-1]  # count except for the last
+        return multiplicity
+        # return multiplicity, [ind[0], len(accept_seq) - ind[-1]]
+
+    @staticmethod
+    def calc_tau_rejections_prob(accept_seq, max_tau=100):
+        """Return the probability of tau rejections in a rows"""
+
+        p_tau = np.zeros(max_tau)
+
+        rej_seq = ~accept_seq
+        tau_rej_seq = rej_seq
+
+        p_tau[0] = np.mean(tau_rej_seq)
+        for i in range(1, max_tau):
+            tau_rej_seq = tau_rej_seq[:-1] & rej_seq[i:]
+            p_tau[i] = np.mean(tau_rej_seq)
+
+        return p_tau
+
+
+class ModifiedMetropolis(Metropolis):
+    """
+    To perform a modified version of Metropolis-Hastings accept/reject step in
+    Markov chain Monte Carlo simulation.
+    """
+
+    @staticmethod
+    @torch.no_grad()
+    def calc_accept_status(logqp, logqp_ref=None, tau=0):
+        """Returns accept/reject using Metropolis algorithm."""
+        # Much faster if inputs are np.ndarray & python number (NO tensor)
+        if logqp_ref is None:
+            logqp_ref = logqp[0]
+        status = np.empty(len(logqp), dtype=bool)
+        lrand_arr = np.log(np.random.rand(logqp.shape[0]))
+        for i, logqp_i in enumerate(logqp):
+            x = logqp_ref - logqp_i
+            status[i] = lrand_arr[i] < -(tau * x**2 + (-x if x < 0 else 0))
+            if status[i]:
+                logqp_ref = logqp_i
+        return status  # also called accept_seq
 
 
 # =============================================================================
