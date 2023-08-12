@@ -52,20 +52,6 @@ class TemplateStaplesHandle:
         else:
             return (eff_proj_plaq_new @ eff_proj_plaq_old.adjoint()) @ link
 
-    @staticmethod
-    def _svd(z):
-        if z is None:
-            svd, svd_phasor = None, None
-        else:
-            # svd = torch.linalg.svd(z)
-            svd = unique_svd(z)  # torch.linalg.svd(z)
-            # det_z = torch.linalg.det(z)
-            # svd_phasor = (det_z / torch.abs(det_z))**(1 / z.shape[-1])
-            # svd_phasor = torch.det(svd.U @ svd.Vh)**(1 / z.shape[-1])
-            svd_phasor = torch.det(svd.UVh)**(1 / z.shape[-1])
-            svd_phasor = svd_phasor.reshape(*z.shape[:-2], 1, 1)
-        return svd, svd_phasor
-
     def free_memory(self):
         self.staples_svd = None
 
