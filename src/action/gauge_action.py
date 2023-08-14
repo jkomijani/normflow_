@@ -15,9 +15,10 @@ class GaugeAction:
 
         S = \int d^n x (...).
     """
-    def __init__(self, *, beta, ndim, propagate_density=False):
+    def __init__(self, *, beta, ndim, nc, propagate_density=False):
         self.beta = beta
         self.ndim = ndim
+        self.nc = nc  # number of colors, i.e. dimension of the gauge matrix
         self._propagate_density = propagate_density  # for test
 
     def _set_propagate_density(self, propagate_density):  # for test
@@ -46,8 +47,7 @@ class GaugeAction:
         for mu in range(1, self.ndim):
             for nu in range(mu):
                 action += torch.sum(self.calc_plaq(cfgs, mu=mu, nu=nu), dim=dim)
-        nc = int(cfgs.shape[-1])  # number of colors
-        action *= (-self.beta / nc)
+        action *= (-self.beta / self.nc)
         if subtractive_term is not None:
             action -= subtractive_term
         return action
@@ -100,6 +100,9 @@ class GaugeAction:
 
 class U1GaugeAction(GaugeAction):
     """A special case of GaugeAction with special `plaq_rule`, ...."""
+
+    def __init__(self, **kwargs):
+        super().__init__(nc=1, **kwargs)
 
     @staticmethod
     def plaq_rule(a, b, c, d):
