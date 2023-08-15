@@ -23,7 +23,7 @@ class SU2RQSplineBlock_(RQSplineBlock_):
     1. The input `x` is a phase between [0, 1],
        and the output will be in the same range.
     2. The input `x` already has a channel axis,
-       but we need to include cosine and since of the input.
+       but we need to include cos and sin of the input.
     """
 
     def __init__(self, net0, net1, xlim=(0, 1), ylim=(0, 1), **kwargs):

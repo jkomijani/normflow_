@@ -31,7 +31,8 @@ class TemplateStaplesHandle:
             raise Exception("staples are not defined!")
 
         eff_proj_plaq = link @ svd_.sUVh
-        return eff_proj_plaq, (svd_.S, svd_.det_uvh.squeeze(-1))
+        extra = torch.cat([svd_.S, torch.view_as_real(svd_.det_uvh)], dim=-1)
+        return eff_proj_plaq, extra
 
     def unstaple(self, eff_proj_plaq, staples=None):
         # see self.push2links, which is used instead of unstaple
