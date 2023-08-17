@@ -2,6 +2,7 @@
 
 """This module includes utilities for masking inputs."""
 
+# TODO: it is better to save 1 - mask in addition to mask because of AD
 
 import torch
 
