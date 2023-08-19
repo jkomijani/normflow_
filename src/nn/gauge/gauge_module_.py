@@ -93,7 +93,7 @@ class GaugeModule_(MatrixModule_):
                 )
         plaq_0, _ = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq_1, logJ = super().forward(plaq_0, log0, reduce_=True)
+        plaq_1, logJ = super().backward(plaq_0, log0, reduce_=True)
         plaq_0 = None  # because reduce_ is set to True above
 
         x_mu = self.staples_handle.push2links(
