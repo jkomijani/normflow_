@@ -277,12 +277,55 @@ class Fitter:
 
     @staticmethod
     def calc_kl_mean(logq, logp):
-        """Return Kullback–Leibler divergence estimated from logq and logp"""
+        """Return Kullback-Leibler divergence estimated from logq and logp"""
         return (logq - logp).mean()  # KL, assuming samples from q
 
     @staticmethod
     def calc_kl_var(logq, logp):
         return (logq - logp).var()
+
+    @staticmethod
+    def calc_kl_weightedmean(logq, logp):
+        logqp = logq - logp
+        with torch.no_grad():
+            q_by_p = torch.exp(torch.clamp(logqp - logqp.mean(), min=-5, max=5))
+        return (q_by_p * logqp).mean()
+
+    @staticmethod
+    def calc_kl_uppermean(logq, logp):
+        logqp = logq - logp
+        return torch.mean(logqp[logqp > logqp.median()])
+
+    @staticmethod
+    def calc_kl_lowermean(logq, logp):
+        logqp = logq - logp
+        return torch.mean(logqp[logqp < logqp.median()])
+
+    @staticmethod
+    def calc_less(logq, logp):
+        r"""LESS: Logarithmic effective sample size.
+
+        LESS defined as
+
+        .. math::
+
+           \frac{\sum \frac{p}{q} (\log(\frac{p}{q}) + logz)}{\sum \frac{p}{q}}
+
+        where
+
+        .. math::
+
+           logz = \log( \sum(frac{p}{q}) / N)
+
+        wbere N is the number of samples.
+
+        Note that LESS is invariant under scaling of p and/or q.
+        """
+        logpq = logp - logq
+        logz = torch.logsumexp(logpq, dim=0) - np.log(logpq.shape[0])
+        logpq = logpq - logz  # p is now normalized
+        less = (torch.exp(logpq) * logpq).mean()
+        return less
 
     @staticmethod
     def calc_direct_kl_mean(logq, logp):
