@@ -127,27 +127,37 @@ class NormalPrior(Prior):
         return dict(loc=self.dist.loc, scale=self.dist.scale)
 
 
-class NormalPriorWithOutlier(NormalPrior):
-    # OBSOLETE; CAN BE REMOVED (used for a test)
+class PriorList:
 
-    def __init__(self, outlier_factor=3, outlier_prob=0.05, **kwargs):
-        super().__init__(**kwargs)
-
-        self.outlier_prior = NormalPrior(
-                loc=self.dist.loc,
-                scale=self.dist.scale * outlier_factor
-                )
-        self.outlier_prob = outlier_prob
+    def __init__(self, prior_list):
+        self.prior_list = prior_list
 
     def sample(self, batch_size=1):
-        size0 = int(batch_size * self.outlier_prob)
-        size1 = batch_size - size0
-        sampler0 = self.outlier_prior.dist.sample  # sample from outlier
-        sampler1 = self.dist.sample  # sample from NormalPrior
-        if size0 > 0:
-            return torch.cat((sampler0((size0,)), sampler1((size1,))), dim=0)
-        else:
-            return sampler1((size1,))
+        return [prior.sample(batch_size) for prior in self.prior_list]
+
+    def sample_(self, batch_size=1):
+        x = [prior.sample(batch_size) for prior in self.prior_list]
+        return x, self.log_prob(x)
+
+    def log_prob(self, x):
+        return [prior.log_prob(x_) for prior, x_ in zip(self.prior_list, x)]
+
+    @property
+    def nvar(self):
+        return sum([prior.nvar for prior in self.prior_list])
+
+    def to(self, *args, **kwargs):
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
+        for prior in self.prior_list:
+            prior.to(*args, **kwargs)
+
+    @property
+    def parameters(self):
+        """Returns all parameters needed to define the priors in a dict."""
+        return [prior.parameters for prior in self.prior_list]
 
 
 class BlockUpdater:

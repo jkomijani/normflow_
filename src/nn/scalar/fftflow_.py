@@ -139,7 +139,7 @@ class FFTNet_(Module_):
     def build(lat_shape, knots_len=10, eff_mass2=1, eff_kappa=1, a=1,
             ignore_zeromode=False, nozeromode=False, **ipsd_kwargs
             ):
-        # better not to use nozeromode
+        # better not to use nozeromode, obsolete option, will be removed
 
         freetheory = FreeScalar(lat_shape)
         max_lat_k2 = torch.max(freetheory.calc_lattice_k2())
