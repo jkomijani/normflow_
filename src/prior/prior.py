@@ -48,15 +48,16 @@ class Prior(ABC):
 
     @abstractmethod
     def to(self, *args, **kwargs):
-        # should a .to(*args, **kwargs) call to all tensors which parametrizes
-        # self.dist to implies that samples drawn from the distribution will
-        # also be created on the same device
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
         pass
 
     @property
     @abstractmethod
     def parameters(self):
-        """ This method should return all parameters needed to define the Prior in a dict """
+        """Returns all parameters needed to define the prior in a dict."""
         pass
 
 
@@ -77,14 +78,17 @@ class UniformPrior(Prior):
         self.shape = shape
 
     def to(self, *args, **kwargs):
-        # moves the distribution parameters to a device, which implies that
-        # samples will also be created on that device
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
         self.dist.low = self.dist.low.to(*args, **kwargs)
         self.dist.high = self.dist.high.to(*args, **kwargs)
 
     @property
     def parameters(self):
-        return dict(low=self.dist.low.item(), high=self.dist.high.item())
+        """Returns all parameters needed to define the prior in a dict."""
+        return dict(low=self.dist.low, high=self.dist.high)
 
 
 class NormalPrior(Prior):
@@ -102,9 +106,7 @@ class NormalPrior(Prior):
         self.shape = shape
 
     def setup_blockupdater(self, block_len):
-        """
-        For simplicity we assume that scale and loc are the same at all points.
-        """
+        # For simplicity we assume that loc & scale are identical everywhere.
         chopped_prior = NormalPrior(
                 loc=self.dist.loc.ravel()[:block_len],
                 scale=self.dist.scale.ravel()[:block_len]
@@ -112,14 +114,17 @@ class NormalPrior(Prior):
         self.blockupdater = BlockUpdater(chopped_prior, block_len)
 
     def to(self, *args, **kwargs):
-        # moves the distribution parameters to a device, which implies that
-        # samples will also be created on that device
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
         self.dist.loc = self.dist.loc.to(*args, **kwargs)
         self.dist.scale = self.dist.scale.to(*args, **kwargs)
 
     @property
     def parameters(self):
-        return dict(loc=float(self.dist.loc.cpu().numpy().flat[0]), scale=float(self.dist.scale.cpu().numpy().flat[0]))
+        """Returns all parameters needed to define the Prior in a dict."""
+        return dict(loc=self.dist.loc, scale=self.dist.scale)
 
 
 class NormalPriorWithOutlier(NormalPrior):

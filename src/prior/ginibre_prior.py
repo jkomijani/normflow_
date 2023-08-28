@@ -16,13 +16,16 @@ class GinibrePrior(Prior):
         self.shape = shape
 
     def to(self, *args, **kwargs):
-        # moves the distribution parameters to a device, which implies that
-        # samples will also be created on that device
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
         dist = self.dist.normal_dist
         dist.loc = dist.loc.to(*args, **kwargs)
         dist.scale = dist.scale.to(*args, **kwargs)
 
     @property
     def parameters(self):
+        """Returns all parameters needed to define the prior in a dict."""
         dist = self.dist.normal_dist
         return dict(loc=dist.loc, scale=dist.scale)

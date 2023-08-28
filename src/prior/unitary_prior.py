@@ -16,14 +16,19 @@ class UnPrior(Prior):
         self.shape = shape
 
     def to(self, *args, **kwargs):
-        # moves the distribution parameters to a device, which implies that
-        # samples will also be created on that device
-        self.dist.normal_dist.loc = self.dist.normal_dist.loc.to(*args, **kwargs)
-        self.dist.normal_dist.scale = self.dist.normal_dist.scale.to(*args, **kwargs)
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
+        dist = self.dist.normal_dist
+        dist.loc = dist.loc.to(*args, **kwargs)
+        dist.scale = dist.scale.to(*args, **kwargs)
 
     @property
     def parameters(self):
-        return dict(loc=self.dist.normal_dist.loc.item(), scale=self.dist.normal_dist.scale.item())
+        """Returns all parameters needed to define the prior in a dict."""
+        dist = self.dist.normal_dist
+        return dict(loc=dist.loc, scale=dist.scale)
 
 
 class SUnPrior(Prior):
@@ -35,14 +40,19 @@ class SUnPrior(Prior):
         self.shape = shape
 
     def to(self, *args, **kwargs):
-        # moves the distribution parameters to a device, which implies that
-        # samples will also be created on that device
-        self.dist.normal_dist.loc = self.dist.normal_dist.loc.to(*args, **kwargs)
-        self.dist.normal_dist.scale = self.dist.normal_dist.scale.to(*args, **kwargs)
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
+        dist = self.dist.normal_dist
+        dist.loc = dist.loc.to(*args, **kwargs)
+        dist.scale = dist.scale.to(*args, **kwargs)
 
     @property
     def parameters(self):
-        return dict(loc=self.dist.normal_dist.loc.item(), scale=self.dist.normal_dist.scale.item())
+        """Returns all parameters needed to define the prior in a dict."""
+        dist = self.dist.normal_dist
+        return dict(loc=dist.loc, scale=dist.scale)
 
 
 class U1Prior(Prior):
@@ -57,11 +67,16 @@ class U1Prior(Prior):
         self.shape = shape
 
     def to(self, *args, **kwargs):
-        # moves the distribution parameters to a device, which implies that
-        # samples will also be created on that device
-        self.dist.uniform_dist.loc = self.dist.uniform_dist.loc.to(*args, **kwargs)
-        self.dist.uniform_dist.scale = self.dist.uniform_dist.scale.to(*args, **kwargs)
+        """
+        Moves the distibution parameters to a device, implying that the samples
+        also will also be created on the same device.
+        """
+        dist = self.dist.uniform_dist
+        dist.loc = dist.loc.to(*args, **kwargs)
+        dist.scale = dist.scale.to(*args, **kwargs)
 
     @property
     def parameters(self):
-        return dict(loc=self.dist.uniform_dist.loc.item(), scale=self.dist.uniform_dist.scale.item())
+        """Returns all parameters needed to define the prior in a dict."""
+        dist = self.dist.uniform_dist
+        return dict(loc=dist.loc, scale=dist.scale)
