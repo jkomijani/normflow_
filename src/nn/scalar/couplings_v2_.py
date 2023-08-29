@@ -45,13 +45,13 @@ class CouplingList_(Module_, ABC):
 
     def __init__(self, nets, *, mask, channels_axis=1, label='cpl_', **kwargs):
         super().__init__(label=label)
-        self.nets = nets
+        self.nets = torch.nn.ModuleList(nets)
         self.mask = mask
         self.channels_axis = channels_axis
         self.kwargs = kwargs
 
     def forward(self, x, log0=0):
-        x = self.mask.split(x)  # x = [x_0, x_1]
+        x = list(self.mask.split(x))  # x = [x_0, x_1]
         for k, net in enumerate(self.nets):
             parity = k % 2
             x[parity], log0 = self.atomic_forward(
@@ -61,10 +61,10 @@ class CouplingList_(Module_, ABC):
                                                   net=net,
                                                   log0=log0
                                                   )
-        return self.mask.cat(x), log0
+        return self.mask.cat(*x), log0
 
     def backward(self, x, log0=0):
-        x = self.mask.split(x)  # x = [x_0, x_1]
+        x = list(self.mask.split(x))  # x = [x_0, x_1]
         for k in list(range(len(self.nets)))[::-1]:
             parity = k % 2
             x[parity], log0 = self.atomic_backward(
@@ -74,7 +74,7 @@ class CouplingList_(Module_, ABC):
                                                   net=self.nets[k],
                                                   log0=log0
                                                   )
-        return self.mask.cat(x), log0
+        return self.mask.cat(*x), log0
 
     @abstractmethod
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
