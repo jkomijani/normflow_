@@ -108,10 +108,10 @@ class CntrCouplingList_(CouplingList_):
 
     def forward(self, x_and_control, log0=0):
         x, control = x_and_control
-        x, control = self.mask.split(x), self.mask.split(control)  # apply mask
+        x = list(self.mask.split(x))  # x = [x_0, x_1]
         for k, net in enumerate(self.nets):
             parity = k % 2
-            x_frozen = (control if k==0 else x)[1 - parity]
+            x_frozen = control if k == 0 else x[1 - parity]
             x[parity], log0 = self.atomic_forward(
                                                   x_active=x[parity],
                                                   x_frozen=x_frozen,
@@ -119,15 +119,15 @@ class CntrCouplingList_(CouplingList_):
                                                   net=net,
                                                   log0=log0
                                                   )
-        x_and_control = [self.mask.cat(x), control]
+        x_and_control = (self.mask.cat(*x), control)
         return x_and_control, log0
 
     def backward(self, x_and_control, log0=0):
         x, control = x_and_control
-        x, control = self.mask.split(x), self.mask.split(control)  # apply mask
+        x = list(self.mask.split(x))  # x = [x_0, x_1]
         for k in list(range(len(self.nets)))[::-1]:
             parity = k % 2
-            x_frozen = (control if k==0 else x)[1 - parity]
+            x_frozen = control if k == 0 else x[1 - parity]
             x[parity], log0 = self.atomic_backward(
                                                   x_active=x[parity],
                                                   x_frozen=x_frozen,
@@ -135,7 +135,7 @@ class CntrCouplingList_(CouplingList_):
                                                   net=self.nets[k],
                                                   log0=log0
                                                   )
-        x_and_control = [self.mask.cat(x), control]
+        x_and_control = (self.mask.cat(*x), control)
         return x_and_control, log0
 
 
@@ -482,3 +482,21 @@ class CntrRQSplineList_(CntrCouplingList_, RQSplineList_):
 
 class CntrMultiRQSplineList_(CntrCouplingList_, MultiRQSplineList_):
     pass
+
+
+class CntrWrapper_(Module_):
+
+    def __init__(self, net_, *, control_generator, label='cntr_wrapper'):
+        super().__init__(label=label)
+        self.control_generator = control_generator
+        self.net_ = net_
+        self.control = None
+
+    def forward(self, x, log0=0):
+        self.control = self.control_generator(x.shape[0])
+        (x, control), log0 = self.net_.forward((x, self.control), log0=log0)
+        return x, log0
+
+    def backward(self, x, log0=0):
+        (x, control), log0 = self.net_.backward((x, self.control), log0=log0)
+        return x, log0
