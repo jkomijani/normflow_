@@ -14,3 +14,5 @@ from .qr_decomposition import haar_qr, haar_sqr
 
 from .euler_angles import su2_to_euler_angles
 from .euler_angles import euler_angles_to_su2
+
+from .mean import neighbor_mean

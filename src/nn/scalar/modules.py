@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Javad Komijani
+# Copyright (c) 2021-2023 Javad Komijani
 
 """This module contains new neural networks..."""
 
@@ -7,14 +7,22 @@ import torch
 import copy
 import numpy as np
 
+from abc import abstractmethod, ABC
+
 from ...lib.spline import RQSpline
+from ...lib.linalg import neighbor_mean
 from .conv4d import Conv4d
 
-class Module(torch.nn.Module):
+
+class Module(torch.nn.Module, ABC):
 
     def __init__(self, label=None):
         super().__init__()
         self.label = label
+
+    @abstractmethod
+    def forward(self, x):
+        pass
 
     @property
     def activations(self):
@@ -28,6 +36,13 @@ class Module(torch.nn.Module):
 
     def transfer(self, **kwargs):
         return copy.deepcopy(self)
+
+
+class AvgNeighborPool(Module):
+    """Return average of all neighbors"""
+
+    def forward(self, x):
+        return neighbor_mean(x, dim=range(1, x.ndim))
 
 
 class ConvAct(Module):
