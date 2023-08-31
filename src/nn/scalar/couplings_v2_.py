@@ -154,8 +154,9 @@ class ShiftList_(CouplingList_):
 class AffineList_(CouplingList_):
     """A coupling block with an affine transformation.
 
-    It accepts a boolean kwargs called `zee2sym`;
-    if True explicitely implements the Z_2 symmetry.
+    It accepts a boolean kwargs called `zee2sym`; if True, hacks the code to
+    explicitely implement the Z(2) symmetry, assuming that `nets` already
+    respect Z(2) summetry.
     """
 
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
@@ -180,11 +181,16 @@ class AffineList_(CouplingList_):
 
 
 class RQSplineList_(CouplingList_):
-    """A coupling block with a rational quadratic spline transformation."""
+    """A coupling block with a rational quadratic spline transformation.
+
+    It accepts a boolean kwargs called `zee2sym`; if True, hacks the code to
+    explicitely implement the Z(2) symmetry, assuming that `nets` already
+    respect Z(2) summetry.
+    """
 
     def __init__(self, nets, *, mask,
             xlim=(0, 1), ylim=(0, 1), knots_x=None, knots_y=None, extrap={},
-            channels_axis=1, label='spline_cpl_'
+            channels_axis=1, label='spline_cpl_', **kwargs
             ):
         """
         Tips on extrapolation:
@@ -195,7 +201,7 @@ class RQSplineList_(CouplingList_):
         """
 
         super().__init__(nets,
-                mask=mask, channels_axis=channels_axis, label=label
+                mask=mask, channels_axis=channels_axis, label=label, **kwargs
                 )
 
         self.xlim, self.xwidth = xlim, xlim[1] - xlim[0]
@@ -212,6 +218,8 @@ class RQSplineList_(CouplingList_):
 
     def atomic_forward(self, net, *, x_active, x_frozen, parity, log0=0):
         out = net(self.preprocess_fz(x_frozen))
+        if ('zee2sym' in self.kwargs.keys()) and self.kwargs['zee2sym']:
+            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = spline(self.preprocess(x_active), grad=True)
@@ -224,6 +232,8 @@ class RQSplineList_(CouplingList_):
 
     def atomic_backward(self, net, *, x_active, x_frozen, parity, log0=0):
         out = net(self.preprocess_fz(x_frozen))
+        if ('zee2sym' in self.kwargs.keys()) and self.kwargs['zee2sym']:
+            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = spline.backward(self.preprocess(x_active), grad=True)
@@ -313,17 +323,22 @@ class RQSplineList_(CouplingList_):
 
 
 class MultiRQSplineList_(CouplingList_):
-    """
-    a coupling block with two rational quadratic spline transformations,
-    transforming two different parameters.
+    """A coupling block with multi rational quadratic spline transformation.
+
+    It accepts a boolean kwargs called `zee2sym`; if True, hacks the code to
+    explicitely implement the Z(2) symmetry, assuming that `nets` already
+    respect Z(2) summetry.
     """
 
     def __init__(self, nets, *, mask,
             xlims=[(0, 1), (0, 1)], ylims=[(0, 1), (0, 1)],
             knots_x=[None, None], knots_y=[None, None],
-            extraps=[{}, {}], channels_axis=1, label='mulspline_cpl_'
+            extraps=[{}, {}], channels_axis=1, label='mulspline_cpl_', **kwargs
             ):
         """
+        xlims, ylims, knots_x, knots_y, extraps are lists; they are by default
+        only for two RQSplines, but should be changed for more RQSplies.
+
         Tips on extrapolation:
         1.  for linear extrapolation on both sides set
             `extrap=dict(left='linear', right='linear')`
@@ -332,7 +347,7 @@ class MultiRQSplineList_(CouplingList_):
         """
 
         super().__init__(nets,
-                mask=mask, channels_axis=channels_axis, label=label
+                mask=mask, channels_axis=channels_axis, label=label, **kwargs
                 )
 
         self.num_splines = len(xlims)
@@ -352,6 +367,8 @@ class MultiRQSplineList_(CouplingList_):
 
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
+        if ('zee2sym' in self.kwargs.keys()) and self.kwargs['zee2sym']:
+            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = self.apply_spline(self.preprocess(x_active), spline)
@@ -362,6 +379,8 @@ class MultiRQSplineList_(CouplingList_):
 
     def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
+        if ('zee2sym' in self.kwargs.keys()) and self.kwargs['zee2sym']:
+            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = self.apply_spline(self.preprocess(x_active), spline, backward=True)
