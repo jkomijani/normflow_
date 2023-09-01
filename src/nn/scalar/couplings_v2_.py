@@ -19,7 +19,7 @@ from ...lib.spline import RQSpline
 
 
 # =============================================================================
-class CouplingList_(Module_, ABC):
+class Coupling_(Module_, ABC):
     """A base class for a list of invertible transformations using a mask-based
     approach to divide the input into two partitions that are coupled in a
     specific way that makes it easy to calculate the Jacobian of the
@@ -112,8 +112,8 @@ class CouplingList_(Module_, ABC):
 
 
 # =============================================================================
-class DirectCntrCouplingList_(CouplingList_):
-    """A "controlled" version of CouplingList_."""
+class DirectCntrCoupling_(Coupling_):
+    """A "controlled" version of Coupling_."""
 
     def forward(self, x_and_control, log0=0):
         x, control = x_and_control
@@ -148,8 +148,8 @@ class DirectCntrCouplingList_(CouplingList_):
         return x_and_control, log0
 
 
-class CntrCouplingList_(DirectCntrCouplingList_):
-    """Similar to DirectCntrCouplingList_ except that it is not direct; the
+class CntrCoupling_(DirectCntrCoupling_):
+    """Similar to DirectCntrCoupling_ except that it is not direct; the
     user will not see the control term.
 
     This class accepts a generator at the time of instantiating.
@@ -177,8 +177,8 @@ class CntrCouplingList_(DirectCntrCouplingList_):
 
 
 # =============================================================================
-class ShiftList_(CouplingList_):
-    """A CouplingList_ with shift transformations."""
+class ShiftCoupling_(Coupling_):
+    """A Coupling_ with shift transformations."""
 
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
         t = self.postprocess(net(self.preprocess_fz(x_frozen)))
@@ -190,8 +190,8 @@ class ShiftList_(CouplingList_):
 
 
 # =============================================================================
-class AffineList_(CouplingList_):
-    """A CouplingList_ with affine transformations."""
+class AffineCoupling_(Coupling_):
+    """A Coupling_ with affine transformations."""
 
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
@@ -215,11 +215,11 @@ class AffineList_(CouplingList_):
 
 
 # =============================================================================
-class RQSplineList_(CouplingList_):
-    """A CouplingList_ with rational quadratic spline transformations.
+class RQSplineCoupling_(Coupling_):
+    """A Coupling_ with rational quadratic spline transformations.
 
-    In addition to the arguments and option of CouplingList_, there are
-    specific options for RQSplineList_:
+    In addition to the arguments and option of Coupling_, there are specific
+    options for RQSplineCoupling_:
 
     >>> xlim, ylim, knots_x, knots_y, extrap
 
@@ -357,17 +357,17 @@ class RQSplineList_(CouplingList_):
 
 
 # =============================================================================
-class MultiRQSplineList_(CouplingList_):
-    """A CouplingList_ with multi rational quadratic spline transformations,
+class MultiRQSplineCoupling_(Coupling_):
+    """A Coupling_ with multi rational quadratic spline transformations,
     each actiong on an additional channel of the input data.
 
-    In addition to the arguments and option of CouplingList_, there are
-    specific options for MultiRQSplineList_, which are very similar to those of
-    RQSplineList_, except that, e.g., instead of `xlim` here we have `xlims`,
-    which is a list. By default the list have two elements, indicating there
-    are two rational quadratic splines.
+    In addition to the arguments and option of Coupling_, there are specific
+    options for MultiRQSplineCoupling_, which are very similar to those of
+    RQSplineCoupling_, except that, e.g., instead of `xlim` here we have
+    `xlims`, which is a list. By default the list have two elements, indicating
+    there are two rational quadratic splines.
 
-    For more details on using these options see RQSplineList_ and RQSpline.
+    For more details on using these options see RQSplineCoupling_ and RQSpline.
     """
 
     def __init__(self, nets, *, mask,
@@ -523,17 +523,17 @@ class MultiRQSplineList_(CouplingList_):
 
 
 # =============================================================================
-class CntrShiftList_(CntrCouplingList_, ShiftList_):
+class CntrShiftCoupling_(CntrCoupling_, ShiftCoupling_):
     pass
 
 
-class CntrAffineList_(CntrCouplingList_, AffineList_):
+class CntrAffineCoupling_(CntrCoupling_, AffineCoupling_):
     pass
 
 
-class CntrRQSplineList_(CntrCouplingList_, RQSplineList_):
+class CntrRQSplineCoupling_(CntrCoupling_, RQSplineCoupling_):
     pass
 
 
-class CntrMultiRQSplineList_(CntrCouplingList_, MultiRQSplineList_):
+class CntrMultiRQSplineCoupling_(CntrCoupling_, MultiRQSplineCoupling_):
     pass
