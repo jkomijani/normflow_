@@ -7,8 +7,6 @@ import torch
 import copy
 import numpy as np
 
-from abc import abstractmethod, ABC
-
 from ...lib.spline import RQSpline
 from ...lib.linalg import neighbor_mean
 from .conv4d import Conv4d
@@ -21,31 +19,27 @@ class AvgNeighborPool(torch.nn.Module):
         return neighbor_mean(x, dim=range(1, x.ndim))
 
 
-class Module(torch.nn.Module, ABC):
+class Module(torch.nn.Module):
 
-    activations = \
-            torch.nn.ModuleDict(
+    def __init__(self, label=None):
+        super().__init__()
+        self.label = label
+
+    def transfer(self, **kwargs):
+        return copy.deepcopy(self)
+
+
+ACTIVATIONS = torch.nn.ModuleDict(
                     [['tanh', torch.nn.Tanh()],
                      ['relu', torch.nn.ReLU()],
                      ['leaky_relu', torch.nn.LeakyReLU()],
                      ['avg_neighbor_pool', AvgNeighborPool()],
                      ['none', torch.nn.Identity()]
                     ]
-             )
-
-    def __init__(self, label=None):
-        super().__init__()
-        self.label = label
-
-    @abstractmethod
-    def forward(self, x):
-        pass
-
-    def transfer(self, **kwargs):
-        return copy.deepcopy(self)
+              )
 
 
-class ConvAct(Module):
+class ConvAct(torch.nn.Sequential):
     """
     As an extension to torch.nn.Conv2d, this network is a sequence of
     convolutional layers with possible hidden layers and activations and other
@@ -108,8 +102,6 @@ class ConvAct(Module):
             **extra_kwargs  # all other kwargs to pass to torch.nn.Conv?d
             ):
 
-        super().__init__()
-
         Conv = self.Conv[conv_dim]
         sizes = [in_channels, *hidden_sizes, out_channels]
         assert len(acts) == len(hidden_sizes) + 1
@@ -117,14 +109,14 @@ class ConvAct(Module):
         conv_kwargs = dict(padding='same', padding_mode='circular')
         conv_kwargs.update(extra_kwargs)
 
-        net = [] if pre_act is None else [self.activations[pre_act]]
+        nets = [] if pre_act is None else [ACTIVATIONS[pre_act]]
 
         for i, act in enumerate(acts):
-            net.append(Conv(sizes[i], sizes[i+1], kernel_size, **conv_kwargs))
+            nets.append(Conv(sizes[i], sizes[i+1], kernel_size, **conv_kwargs))
             if act is not None:
-                net.append(self.activations[act])
+                nets.append(ACTIVATIONS[act])
 
-        self.net = torch.nn.Sequential(*net)
+        super().__init__(*nets)
 
         # save all inputs so that the can be used later for transfer learning
         conv_kwargs.update(
@@ -135,11 +127,8 @@ class ConvAct(Module):
                 )
         self.conv_kwargs = conv_kwargs
 
-    def forward(self, x):
-        return self.net(x)
-
     def set_param2zero(self):
-        for net in self.net:
+        for net in self:
             for param in net.parameters():
                 torch.nn.init.zeros_(param)
 
@@ -178,7 +167,7 @@ class ConvAct(Module):
         return new_net
 
 
-class LinearAct(Module):
+class LinearAct(torch.nn.Sequential):
     """
     As an extension to torch.nn.Linear, this network is a sequence of linear
     layers with possible hidden layers and activations.
@@ -196,9 +185,9 @@ class LinearAct(Module):
     Parameters
     ----------
     in_features (int):
-        Number of channels in the input data
+        Number of features in the input data
     out_features (int):
-        Number of channels produced by the convolution
+        Number of features in the output data
     hidden_sizes (list/tuple of int, optional):
         Sizes of hidden layers (default is [])
     acts (list/tuple of str or None, optional):
@@ -212,45 +201,37 @@ class LinearAct(Module):
             hidden_sizes = [],
             acts = [None],
             pre_act = None,
-            out_channels = None,
             **linear_kwargs  # all other kwargs to pass to torch.nn.Conv?d
             ):
-
-        super().__init__()
 
         Linear = torch.nn.Linear
         sizes = [in_features, *hidden_sizes, out_features]
         assert len(acts) == len(hidden_sizes) + 1
 
-        net = [] if pre_act is None else [self.activations[pre_act]]
+        nets = [] if pre_act is None else [ACTIVATIONS[pre_act]]
 
         for i, act in enumerate(acts):
-            net.append(Linear(sizes[i], sizes[i+1], **linear_kwargs))
+            nets.append(Linear(sizes[i], sizes[i+1], **linear_kwargs))
             if act is not None:
-                net.append(self.activations[act])
+                nets.append(ACTIVATIONS[act])
 
-        self.net = torch.nn.Sequential(*net)
+        super().__init__(*nets)
 
         # save all inputs so that the can be used later for transfer learning
         linear_kwargs.update(
                 dict(in_features=in_features, out_features=out_features,
-                     hidden_sizes=hidden_sizes, acts=acts,
-                     out_channels=out_channels
+                     hidden_sizes=hidden_sizes, acts=acts
                      )
                 )
         self.linear_kwargs = linear_kwargs
 
-        assert (out_channels is None) or (out_features % out_channels == 0)
-
-    def forward(self, x):
-        y = self.net(x)
-        out_ch = self.linear_kwargs['out_channels']
-        return x if out_ch is None else x.view(*x.shape[:-1], -1, out_ch)
-
     def set_param2zero(self):
-        for net in self.net:
+        for net in self:
             for param in net.parameters():
                 torch.nn.init.zeros_(param)
+
+    def transfer(self, **kwargs):
+        return copy.deepcopy(self)
 
 
 class SplineNet(Module):
