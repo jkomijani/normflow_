@@ -210,61 +210,6 @@ class LinearAct(Module):
         return self.net(x_reshaped).reshape(*out_shape)
 
 
-class MultiLinearAct(Module):
-    """A sequence of linear nets with activations. The output is reshaped as
-    multiple channles.
-
-    Parameters
-    ----------
-    features: int
-        Nodes in the input layer
-    channels: int
-        Channels in the output layer
-    hidden_sizes: tuple/list of int
-        Nodes in the hidden layers
-    acts: None or tuple/list of str
-        If tuple/list, its length must be equal to the number of layers,
-        and if None uses the default values
-    bias: bool
-        Whether to use biases in the layers
-    """
-
-    def __init__(self, *, threads, features, channels,
-            hidden_sizes=[], channels_axis=-1, acts=['none'], bias=True
-            ):
-        super().__init__()
-        self.threads = threads
-        self.features = features
-        self.channels = channels
-        self.channels_axis = channels_axis
-        sizes = [features, *hidden_sizes, features * channels]
-        Linear = torch.nn.Linear
-        threads_net = []
-        assert len(acts) == len(hidden_sizes)+1
-        for thread in range(threads):
-            net = []
-            for i, act in enumerate(acts):
-                net.append(Linear(sizes[i], sizes[i+1], bias=bias))
-                net.append(self.activations[act])
-            threads_net.append(torch.nn.Sequential(*net))
-        # Pytorch wouldn't recognize Modules if we save threads_net as a list.
-        # Therefore, we save threads_net as a ModuleDict
-        self.threads_net = torch.nn.ModuleDict(
-                [(str(i), net) for i, net in enumerate(threads_net)]
-                )
-        # self.threads_net either should be an instance of Module or ModuleDict 
-
-    def forward(self, x):
-        threads_axis = 1
-        x_reshaped = x.reshape(-1, self.threads, self.features)
-        split = lambda z: z.split(tuple([1]*self.threads), dim=threads_axis)
-        nets = self.threads_net
-        out = [nets[str(i)](x_i) for i, x_i in enumerate(split(x_reshaped))]
-        out_shape = list(x.size())
-        out_shape[self.channels_axis] = self.channels
-        return torch.cat(out, threads_axis).reshape(*out_shape)
-
-
 class SplineNet(Module):
 
     def __init__(self, knots_len, xlim=(0, 1), ylim=(0, 1),
