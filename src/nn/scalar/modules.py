@@ -363,27 +363,6 @@ class SplineNet(Module):
         return self.Spline(**mydict, **self.spline_kwargs)
 
 
-class NOT_USED_SlidingSplineNet(SplineNet):
-    """Similar to SplineNet but the `y` value of the start and end points are
-    parameters.
-
-    `logy[0]` and logy[1] are logarithm of `y` of the start and end points,
-    respectively.
-    """
-
-    def __init__(self, knots_len, *, logy, **kwargs):
-        super().__init__(knots_len, **kwargs)
-        self.logy = torch.nn.Parameter(logy)
-
-    def forward(self, x):
-        a, b = torch.exp(self.logy)
-        return a + b * super().forward(x)
-
-    def backward(self, x):
-        a, b = torch.exp(self.logy)
-        return super().backward((x - a)/b)
-
-
 class Expit(Module):
     """This can be also called Sigmoid"""
 
