@@ -14,7 +14,24 @@ from ...lib.linalg import neighbor_mean
 from .conv4d import Conv4d
 
 
+class AvgNeighborPool(torch.nn.Module):
+    """Return average of all neighbors"""
+
+    def forward(self, x):
+        return neighbor_mean(x, dim=range(1, x.ndim))
+
+
 class Module(torch.nn.Module, ABC):
+
+    activations = \
+            torch.nn.ModuleDict(
+                    [['tanh', torch.nn.Tanh()],
+                     ['relu', torch.nn.ReLU()],
+                     ['leaky_relu', torch.nn.LeakyReLU()],
+                     ['avg_neighbor_pool', AvgNeighborPool()],
+                     ['none', torch.nn.Identity()]
+                    ]
+             )
 
     def __init__(self, label=None):
         super().__init__()
@@ -24,23 +41,8 @@ class Module(torch.nn.Module, ABC):
     def forward(self, x):
         pass
 
-    @property
-    def activations(self):
-        return torch.nn.ModuleDict([
-                ['tanh', torch.nn.Tanh()],
-                ['leaky_relu', torch.nn.LeakyReLU()],
-                ['none', torch.nn.Identity()]
-               ])
-
     def transfer(self, **kwargs):
         return copy.deepcopy(self)
-
-
-class AvgNeighborPool(Module):
-    """Return average of all neighbors"""
-
-    def forward(self, x):
-        return neighbor_mean(x, dim=range(1, x.ndim))
 
 
 class ConvAct(Module):
@@ -57,6 +59,7 @@ class ConvAct(Module):
     must also provide another list/tuple for activations using the option
     `acts`; the lenght of `acts` must be equal to the lenght of `hidden_sizes`
     plus 1 (for the output layer).
+    There is also another option for pre-activation of the input: `pre_act`.
 
     The axes of the input and output tensors are treated as
     :math:`tensor(:, ch, ...)`, where `:` stands for the batch axis,
@@ -82,8 +85,10 @@ class ConvAct(Module):
         Dimension of the convolving kernel (default is 2)
     hidden_sizes (list/tuple of int, optional):
         Sizes of hidden layers (default is [])
-    acts (list/tuple of str, optional):
-        Activations after each layer (default is 'none')
+    acts (list/tuple of str or None, optional):
+        Activations after each layer (default is None)
+    pre_act (str or None, optional):
+        A possible activation layer before the rest (default is None)
     """
 
     Conv = {1: torch.nn.Conv1d,
@@ -98,7 +103,8 @@ class ConvAct(Module):
             kernel_size: int,
             conv_dim: int = 2,
             hidden_sizes = [],
-            acts = ['none'],
+            acts = [None],
+            pre_act = None,
             **extra_kwargs  # all other kwargs to pass to torch.nn.Conv?d
             ):
 
@@ -111,10 +117,13 @@ class ConvAct(Module):
         conv_kwargs = dict(padding='same', padding_mode='circular')
         conv_kwargs.update(extra_kwargs)
 
-        net = []
+        net = [] if pre_act is None else [self.activations[pre_act]]
+
         for i, act in enumerate(acts):
             net.append(Conv(sizes[i], sizes[i+1], kernel_size, **conv_kwargs))
-            net.append(self.activations[act])
+            if act is not None:
+                net.append(self.activations[act])
+
         self.net = torch.nn.Sequential(*net)
 
         # save all inputs so that the can be used later for transfer learning
@@ -177,7 +186,8 @@ class LinearAct(Module):
     As an option, one can provide a list/tuple for `hidden_sizes`. Then, one
     must also provide another list/tuple for activations using the option
     `acts`; the lenght of `acts` must be equal to the lenght of `hidden_sizes`
-    plus 1 (for the output layer). It is also possible to provide
+    plus 1 (for the output layer).
+    There is also another option for pre-activation of the input: `pre_act`.
 
     The axes of the input and output tensors are treated as
     :math:`tensor(..., f)`, where `...` stands for any number of dimensions
@@ -191,14 +201,17 @@ class LinearAct(Module):
         Number of channels produced by the convolution
     hidden_sizes (list/tuple of int, optional):
         Sizes of hidden layers (default is [])
-    acts (list/tuple of str, optional):
-        Activations after each layer (default is 'none')
+    acts (list/tuple of str or None, optional):
+        Activations after each layer (default is None)
+    pre_act (str or None, optional):
+        A possible activation layer before the rest (default is None)
     """
     def __init__(self,
             in_features: int,
             out_features: int,
             hidden_sizes = [],
-            acts = ['none'],
+            acts = [None],
+            pre_act = None,
             out_channels = None,
             **linear_kwargs  # all other kwargs to pass to torch.nn.Conv?d
             ):
@@ -209,10 +222,13 @@ class LinearAct(Module):
         sizes = [in_features, *hidden_sizes, out_features]
         assert len(acts) == len(hidden_sizes) + 1
 
-        net = []
+        net = [] if pre_act is None else [self.activations[pre_act]]
+
         for i, act in enumerate(acts):
             net.append(Linear(sizes[i], sizes[i+1], **linear_kwargs))
-            net.append(self.activations[act])
+            if act is not None:
+                net.append(self.activations[act])
+
         self.net = torch.nn.Sequential(*net)
 
         # save all inputs so that the can be used later for transfer learning
