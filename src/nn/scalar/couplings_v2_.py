@@ -112,7 +112,7 @@ class CouplingList_(Module_, ABC):
 
 
 # =============================================================================
-class CntrCouplingList_(CouplingList_):
+class DirectCntrCouplingList_(CouplingList_):
     """A "controlled" version of CouplingList_."""
 
     def forward(self, x_and_control, log0=0):
@@ -146,6 +146,34 @@ class CntrCouplingList_(CouplingList_):
                                                   )
         x_and_control = (self.mask.cat(*x), control)
         return x_and_control, log0
+
+
+class CntrCouplingList_(DirectCntrCouplingList_):
+    """Similar to DirectCntrCouplingList_ except that it is not direct; the
+    user will not see the control term.
+
+    This class accepts a generator at the time of instantiating.
+    In each call, a control term will be generated for controling the output,
+    but the will not be returned; the control term will be saved for a
+    reference, but will be replaced in the next call.
+    """
+
+    def __init__(self, *args, control_generator=None, **kwargs):
+
+        super().__init__(*args, **kwargs)
+
+        self.control_generator = control_generator
+        self.control = None
+
+    def forward(self, x, log0=0):
+        batch_size = x.shape[0]
+        self.control = self.control_generator(batch_size)
+        (x, control), log0 = super().forward((x, self.control), log0=log0)
+        return x, log0
+
+    def backward(self, x, log0=0):
+        (x, control), log0 = super().backward((x, self.control), log0=log0)
+        return x, log0
 
 
 # =============================================================================
@@ -509,22 +537,3 @@ class CntrRQSplineList_(CntrCouplingList_, RQSplineList_):
 
 class CntrMultiRQSplineList_(CntrCouplingList_, MultiRQSplineList_):
     pass
-
-
-# =============================================================================
-class CntrWrapper_(Module_):
-
-    def __init__(self, net_, *, control_generator, label='cntr_wrapper'):
-        super().__init__(label=label)
-        self.control_generator = control_generator
-        self.net_ = net_
-        self.control = None
-
-    def forward(self, x, log0=0):
-        self.control = self.control_generator(x.shape[0])
-        (x, control), log0 = self.net_.forward((x, self.control), log0=log0)
-        return x, log0
-
-    def backward(self, x, log0=0):
-        (x, control), log0 = self.net_.backward((x, self.control), log0=log0)
-        return x, log0
