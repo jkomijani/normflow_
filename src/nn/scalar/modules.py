@@ -29,9 +29,7 @@ class Module(torch.nn.Module, ABC):
         return torch.nn.ModuleDict([
                 ['tanh', torch.nn.Tanh()],
                 ['leaky_relu', torch.nn.LeakyReLU()],
-                ['none', torch.nn.Identity()],
-                ['dc-sym', DistConvertor(10, symmetric=True)],
-                ['dc-asym', DistConvertor(10, symmetric=False)]
+                ['none', torch.nn.Identity()]
                ])
 
     def transfer(self, **kwargs):
@@ -46,43 +44,72 @@ class AvgNeighborPool(Module):
 
 
 class ConvAct(Module):
-    """A sequence of conv nets with activations.
+    """
+    As an extension to torch.nn.Conv2d, this network is a sequence of
+    convolutional layers with possible hidden layers and activations and other
+    dimensions.
+
+    Instantiating this class with the default optional variables is equivalent
+    to instantiating torch.nn.Conv2d with following optional varaibles:
+    padding = 'same' and padding_mode = 'circular'.
+
+    As an option, one can provide a list/tuple for `hidden_sizes`. Then, one
+    must also provide another list/tuple for activations using the option
+    `acts`; the lenght of `acts` must be equal to the lenght of `hidden_sizes`
+    plus 1 (for the output layer).
+
+    The axes of the input and output tensors are treated as
+    :math:`tensor(:, ch, ...)`, where `:` stands for the batch axis,
+    `ch` for the channels axis, and `...` for the features axes.
+
+    .. math::
+
+        out(:, ch_o, ...) = bias(ch_o) +
+                        \sum_{ch_i} weight(ch_o, ...) \star input(:, ch_i, ...)
+
+    where :math:`\star` is n-dimensional cross-correlation operator acting on
+    the features axes. The supported features dinensions are 1, 2, 3, and 4.
 
     Parameters
     ----------
-    in_channels:  int
-        Channels in the input layer
-    out_channels:
-        Channels in the output layer
-    hidden_sizes: tuple/list
-        Channes in the hidden layers
-    acts: tuple/list of str or None
-        If tuple/list, its length must be equal to the number of layers,
-        and if None uses the default values
-    bias: bool
-        Whether to use biases in the layers
+    in_channels (int):
+        Number of channels in the input data
+    out_channels (int):
+        Number of channels produced by the convolution
+    kernel_size (int or tuple):
+        Size of the convolving kernel
+    conv_dim (int, optional):
+        Dimension of the convolving kernel (default is 2)
+    hidden_sizes (list/tuple of int, optional):
+        Sizes of hidden layers (default is [])
+    acts (list/tuple of str, optional):
+        Activations after each layer (default is 'none')
     """
 
-    def __init__(self, *, in_channels, out_channels, conv_dim,
-            hidden_sizes=[], kernel_size=3, acts=['none'],
-            padding_mode='circular', bias=True,
-            set_param2zero=False
-            ):
-        super().__init__()
-        sizes = [in_channels, *hidden_sizes, out_channels]
-        padding_size = (kernel_size // 2)
-        conv_kwargs = dict(
-                padding=padding_size, padding_mode=padding_mode, bias=bias
-                )
+    Conv = {1: torch.nn.Conv1d,
+            2: torch.nn.Conv2d,
+            3: torch.nn.Conv3d,
+            4: Conv4d
+            }
 
-        if conv_dim == 1:
-            Conv = torch.nn.Conv1d
-        elif conv_dim == 2:
-            Conv = torch.nn.Conv2d
-        elif conv_dim == 3:
-            Conv = torch.nn.Conv3d
-        elif conv_dim == 4:
-            Conv = Conv4d
+    def __init__(self,
+            in_channels: int,
+            out_channels: int,
+            kernel_size: int,
+            conv_dim: int = 2,
+            hidden_sizes = [],
+            acts = ['none'],
+            **extra_kwargs  # all other kwargs to pass to torch.nn.Conv?d
+            ):
+
+        super().__init__()
+
+        Conv = self.Conv[conv_dim]
+        sizes = [in_channels, *hidden_sizes, out_channels]
+        assert len(acts) == len(hidden_sizes) + 1
+
+        conv_kwargs = dict(padding='same', padding_mode='circular')
+        conv_kwargs.update(extra_kwargs)
 
         net = []
         for i, act in enumerate(acts):
@@ -90,15 +117,14 @@ class ConvAct(Module):
             net.append(self.activations[act])
         self.net = torch.nn.Sequential(*net)
 
-        self.conv_kwargs = dict(
-                in_channels=in_channels, out_channels=out_channels,
-                conv_dim=conv_dim, hidden_sizes=hidden_sizes,
-                kernel_size=kernel_size, acts=acts,
-                padding_mode=padding_mode, bias=bias
+        # save all inputs so that the can be used later for transfer learning
+        conv_kwargs.update(
+                dict(in_channels=in_channels, out_channels=out_channels,
+                     kernel_size=kernel_size, conv_dim=conv_dim,
+                     hidden_sizes=hidden_sizes, acts=acts
+                     )
                 )
-
-        if set_param2zero:
-            self.set_param2zero()
+        self.conv_kwargs = conv_kwargs
 
     def forward(self, x):
         return self.net(x)
@@ -109,8 +135,9 @@ class ConvAct(Module):
                 torch.nn.init.zeros_(param)
 
     def transfer(self, scale_factor=1, **extra):
-        """Returns a copy of the current module if scale_factor is 1.
-        Otherwise, use the input scale_factor to resize the kernel size.
+        """
+        Returns a copy of the current module if scale_factor is 1.
+        Otherwise, uses the input scale_factor to resize the kernel size.
         """
         if scale_factor == 1:
             return copy.deepcopy(self)
@@ -160,7 +187,6 @@ class LinearAct(Module):
     bias: bool
         Whether to use biases in the layers
     """
-
     def __init__(self, *, features, channels,
             hidden_sizes=[], channels_axis=-1, acts=['none'], bias=True
             ):
