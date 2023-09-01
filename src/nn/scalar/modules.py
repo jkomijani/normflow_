@@ -170,44 +170,71 @@ class ConvAct(Module):
 
 
 class LinearAct(Module):
-    """A sequence of linear nets with activations. The output is reshaped as
-    multiple channles.
+    """
+    As an extension to torch.nn.Linear, this network is a sequence of linear
+    layers with possible hidden layers and activations.
+
+    As an option, one can provide a list/tuple for `hidden_sizes`. Then, one
+    must also provide another list/tuple for activations using the option
+    `acts`; the lenght of `acts` must be equal to the lenght of `hidden_sizes`
+    plus 1 (for the output layer). It is also possible to provide
+
+    The axes of the input and output tensors are treated as
+    :math:`tensor(..., f)`, where `...` stands for any number of dimensions
+    and `f` for the features axis.
 
     Parameters
     ----------
-    features: int
-        Nodes in the input layer
-    channels: int
-        Channels in the output layer
-    hidden_sizes: tuple/list of int
-        Nodes in the hidden layers
-    acts: None or tuple/list of str
-        If tuple/list, its length must be equal to the number of layers,
-        and if None uses the default values
-    bias: bool
-        Whether to use biases in the layers
+    in_features (int):
+        Number of channels in the input data
+    out_features (int):
+        Number of channels produced by the convolution
+    hidden_sizes (list/tuple of int, optional):
+        Sizes of hidden layers (default is [])
+    acts (list/tuple of str, optional):
+        Activations after each layer (default is 'none')
     """
-    def __init__(self, *, features, channels,
-            hidden_sizes=[], channels_axis=-1, acts=['none'], bias=True
+    def __init__(self,
+            in_features: int,
+            out_features: int,
+            hidden_sizes = [],
+            acts = ['none'],
+            out_channels = None,
+            **linear_kwargs  # all other kwargs to pass to torch.nn.Conv?d
             ):
+
         super().__init__()
-        self.features = features
-        self.channels = channels
-        self.channels_axis = channels_axis
-        sizes = [features, *hidden_sizes, features * channels]
+
         Linear = torch.nn.Linear
+        sizes = [in_features, *hidden_sizes, out_features]
+        assert len(acts) == len(hidden_sizes) + 1
+
         net = []
-        assert len(acts) == len(hidden_sizes)+1
         for i, act in enumerate(acts):
-            net.append(Linear(sizes[i], sizes[i+1], bias=bias))
+            net.append(Linear(sizes[i], sizes[i+1], **linear_kwargs))
             net.append(self.activations[act])
         self.net = torch.nn.Sequential(*net)
 
+        # save all inputs so that the can be used later for transfer learning
+        linear_kwargs.update(
+                dict(in_features=in_features, out_features=out_features,
+                     hidden_sizes=hidden_sizes, acts=acts,
+                     out_channels=out_channels
+                     )
+                )
+        self.linear_kwargs = linear_kwargs
+
+        assert (out_channels is None) or (out_features % out_channels == 0)
+
     def forward(self, x):
-        x_reshaped = x.reshape(-1, self.features)
-        out_shape = list(x.size())
-        out_shape[self.channels_axis] = self.channels
-        return self.net(x_reshaped).reshape(*out_shape)
+        y = self.net(x)
+        out_ch = self.linear_kwargs['out_channels']
+        return x if out_ch is None else x.view(*x.shape[:-1], -1, out_ch)
+
+    def set_param2zero(self):
+        for net in self.net:
+            for param in net.parameters():
+                torch.nn.init.zeros_(param)
 
 
 class SplineNet(Module):
