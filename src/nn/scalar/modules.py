@@ -19,6 +19,13 @@ class AvgNeighborPool(torch.nn.Module):
         return neighbor_mean(x, dim=range(1, x.ndim))
 
 
+class Abs(torch.nn.Module):
+
+    def forward(self, x):
+        return torch.abs(x)
+
+
+
 class Module(torch.nn.Module):
 
     def __init__(self, label=None):
@@ -34,6 +41,7 @@ ACTIVATIONS = torch.nn.ModuleDict(
                      ['relu', torch.nn.ReLU()],
                      ['leaky_relu', torch.nn.LeakyReLU()],
                      ['avg_neighbor_pool', AvgNeighborPool()],
+                     ['abs', Abs()],
                      ['none', torch.nn.Identity()]
                     ]
               )
