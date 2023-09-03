@@ -36,7 +36,7 @@ class GaugeAction:
         action *= (-self.beta / self.nc)
         return action
 
-    def action_density(self, cfgs, subtractive_term=None):
+    def action_density(self, cfgs):
         """Returns action density corresponding to input configurations."""
         dim = tuple(range(1, 1+self.ndim))  # 0 axis is the batch axis
         action_density = 0
