@@ -24,23 +24,16 @@ class SchwingerAction(U1GaugeAction):
         self.fermions_dict = fermions_dict
         self.fermions = LogDetAction(fermions_dict)
 
-    def __call__(self, cfgs, subtractive_term=None):
-        return self.action(cfgs, subtractive_term)
+    def __call__(self, cfgs):
+        return self.action(cfgs)
 
-    def action(self, cfgs, subtractive_term=None):
-        """
-        Parameters
-        ----------
-        cfgs : tensor
-            Tensor of configurations
-        subtractive_term: None/scalar/tensor (optional)
-            If not None, this term gets subtracted from action
-        """
+    def action(self, cfgs):
+        """Returns action corresponding to input configurations."""
         action = super().action(cfgs, subtractive_term=subtractive_term)
         action -= self.fermions.calc_logdet(cfgs)
         return action
 
-    def action_density(self, cfgs, subtractive_term=None):
+    def action_density(self, cfgs):
         pass
 
     @property

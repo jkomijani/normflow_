@@ -20,21 +20,12 @@ class LogDetAction:
     def __init__(self, fermions_dict={0: dict(mass=1, copies=1)}):
         self.fermions_dict = fermions_dict
 
-    def __call__(self, cfgs, subtractive_term=None):
-        return self.action(cfgs, subtractive_term)
+    def __call__(self, cfgs):
+        return self.action(cfgs)
 
-    def action(self, cfgs, subtractive_term=None):
-        """
-        Parameters
-        ----------
-        cfgs : tensor
-            Tensor of configurations
-        subtractive_term: None/scalar/tensor (optional)
-            If not None, this term gets subtracted from action
-        """
+    def action(self, cfgs):
+        """Returns action corresponding to input configurations."""
         action = -self.calc_logdet(cfgs)
-        if subtractive_term is not None:
-            action -= subtractive_term
         return action
 
     def calc_logdet(self, cfgs):

@@ -67,23 +67,3 @@ class ScalarPhi4Action:
     def log_prob(self, x, action_logz=0):
         """Returns log probability up to an additive constant."""
         return -self.action(x) - action_logz
-
-
-class CntrScalarPhi4Action(ScalarPhi4Action):
-    """The action depends on a control term."""
-
-    def action(self, cfgs_and_control):
-        """Return action corresponding to input configurations."""
-
-        action_density = self.action_density(cfgs_and_control)
-        action = torch.sum(action_density, dim=range(1, action_density.ndim))
-        return action
-
-    def action_density(self, cfgs_and_control):
-        """Return action density corresponding to input configurations."""
-
-        cfgs, control = cfgs_and_control
-        w0, w2, w4 = self.get_coef(cfgs.ndim - 1)
-
-        action_density = w0 * control * cfgs + w2 * cfgs**2 + w4 * cfgs**4
-        return action_density
