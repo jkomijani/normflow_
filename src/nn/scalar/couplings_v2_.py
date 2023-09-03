@@ -278,15 +278,16 @@ class RQSplineCoupling_(Coupling_):
         g = self.mask.purify(g, channel=parity, zero2one=True)
         return fx_active, log0 + self.sum_density(torch.log(g))
 
-    def _hack(self, x, parity=0):
-        x_0, x_1 = self.mask.split(x)
-        if parity == 0:
-            net, x_active, x_frozen = self.net0, x_0, x_1
-        else:
-            net, x_active, x_frozen = self.net1, x_1, x_0
+    def _hack(self, net, *, x_active, x_frozen, parity):
         out = net(self.preprocess_fz(x_frozen))
+        if self.zee2sym:
+            out = torch.abs(out)
         spline = self.make_spline(out)
-        return spline, x_active
+        fx_active, g = spline(self.preprocess(x_active), grad=True)
+        fx_active, g = self.postprocess(fx_active), self.postprocess(g)
+        fx_active = self.mask.purify(fx_active, channel=parity)
+        g = self.mask.purify(g, channel=parity, zero2one=True)
+        return spline, fx_active, g
 
     def make_spline(self, out):
         # `out` is the output of net(in)
