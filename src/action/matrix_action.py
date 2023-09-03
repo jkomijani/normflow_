@@ -22,29 +22,21 @@ class MatrixAction:
     def reset_parameters(self, *, beta):
         self.beta = beta
        
-    def __call__(self, cfgs, subtractive_term=None):
-        return self.action(cfgs, subtractive_term)
+    def __call__(self, cfgs):
+        return self.action(cfgs)
   
-    def action(self, cfgs, subtractive_term=None):
-        """
-        Parameters
-        ----------
-        cfgs : tensor
-            Tensor of configurations
-        subtractive_term: None/scalar/tensor (optional)
-            If not None, this term gets subtracted from action
-        """
+    def action(self, cfgs):
+        """Returns action corresponding to input configurations."""
         action = self.action_density(cfgs)
         # The following if True for more-than-one-point matrix models.
         if action.ndim > 1:
             dim = tuple(range(1, action.ndim))  # 0 axis is the batch axis
             action = torch.sum(action, dim=dim)
 
-        if subtractive_term is not None:
-            action -= subtractive_term
         return action
    
     def action_density(self, cfgs):
+        """Returns action density corresponding to input configurations."""
         if self.staples_matrix is not None:
             cfgs = cfgs @ self.staples_matrix
         return -self.beta * calc_reduced_trace(self.func(cfgs))
