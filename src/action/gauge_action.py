@@ -15,52 +15,29 @@ class GaugeAction:
 
         S = \int d^n x (...).
     """
-    def __init__(self, *, beta, ndim, nc, propagate_density=False):
+    def __init__(self, *, beta, ndim, nc):
         self.beta = beta
         self.ndim = ndim
         self.nc = nc  # number of colors, i.e. dimension of the gauge matrix
-        self._propagate_density = propagate_density  # for test
-
-    def _set_propagate_density(self, propagate_density):  # for test
-        self._propagate_density = propagate_density
 
     def reset_parameters(self, *, beta):
         self.beta = beta
        
-    def __call__(self, cfgs, subtractive_term=None):
-        if self._propagate_density:
-            return self.action_density(cfgs, subtractive_term)
-        else:
-            return self.action(cfgs, subtractive_term)
+    def __call__(self, cfgs):
+        return self.action(cfgs)
   
-    def action(self, cfgs, subtractive_term=None):
-        """
-        Parameters
-        ----------
-        cfgs : tensor
-            Tensor of configurations
-        subtractive_term: None/scalar/tensor (optional)
-            If not None, this term gets subtracted from action
-        """
+    def action(self, cfgs):
+        """Returns action corresponding to input configurations."""
         dim = tuple(range(1, 1+self.ndim))  # 0 axis is the batch axis
         action = 0
         for mu in range(1, self.ndim):
             for nu in range(mu):
                 action += torch.sum(self.calc_plaq(cfgs, mu=mu, nu=nu), dim=dim)
         action *= (-self.beta / self.nc)
-        if subtractive_term is not None:
-            action -= subtractive_term
         return action
 
     def action_density(self, cfgs, subtractive_term=None):
-        """
-        Parameters
-        ----------
-        cfgs : tensor
-            Tensor of configurations
-        subtractive_term: None/scalar/tensor (optional)
-            If not None, this term gets subtracted from action
-        """
+        """Returns action density corresponding to input configurations."""
         dim = tuple(range(1, 1+self.ndim))  # 0 axis is the batch axis
         action_density = 0
         for mu in range(1, self.ndim):
@@ -68,8 +45,6 @@ class GaugeAction:
                 action_density += self.calc_plaq(cfgs, mu=mu, nu=nu)
         nc = int(cfgs.shape[-1])  # number of colors
         action_density *= (-self.beta / nc)
-        if subtractive_term is not None:
-            action_density -= subtractive_term
         return action_density
 
     def calc_plaq(self, cfgs, *, mu, nu, real=True):
