@@ -193,8 +193,7 @@ class MultiChannelModule_(torch.nn.ModuleList):
         else:
             x = x.unbind(dim=self.channels_axis)
 
-        if len(x) != len(f_):
-            raise Exception("mismatch in channels of input & network.""")
+        assert len(x) == len(f_), "mismatch in channels of input & network."
 
         out = [fj_(xj) for fj_, xj in zip(f_, x)]
         if self.keep_channels_axis:
