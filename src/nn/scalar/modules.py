@@ -25,15 +25,18 @@ class Abs(torch.nn.Module):
         return torch.abs(x)
 
 
+class Expit(torch.nn.Module):
+    """This can be also called Sigmoid and is basically torch.nn.Sigmoid"""
 
-class Module(torch.nn.Module):
+    def forward(self, x):
+        return 1/(1 + torch.exp(-x))
 
-    def __init__(self, label=None):
-        super().__init__()
-        self.label = label
 
-    def transfer(self, **kwargs):
-        return copy.deepcopy(self)
+class Logit(torch.nn.Module):
+    """This is inverse of Sigmoid"""
+
+    def forward(self, x):
+        return torch.log(x/(1 - x))
 
 
 ACTIVATIONS = torch.nn.ModuleDict(
@@ -42,9 +45,22 @@ ACTIVATIONS = torch.nn.ModuleDict(
                      ['leaky_relu', torch.nn.LeakyReLU()],
                      ['avg_neighbor_pool', AvgNeighborPool()],
                      ['abs', Abs()],
+                     ['expit', Expit()],
+                     ['logit', Logit()],
                      ['none', torch.nn.Identity()]
                     ]
               )
+
+
+class Module(torch.nn.Module):
+    """A prototype class with transfer method and label."""
+
+    def __init__(self, label=None):
+        super().__init__()
+        self.label = label
+
+    def transfer(self, **kwargs):
+        return copy.deepcopy(self)
 
 
 class ConvAct(torch.nn.Sequential):
@@ -130,7 +146,7 @@ class ConvAct(torch.nn.Sequential):
         conv_kwargs.update(
                 dict(in_channels=in_channels, out_channels=out_channels,
                      kernel_size=kernel_size, conv_dim=conv_dim,
-                     hidden_sizes=hidden_sizes, acts=acts
+                     hidden_sizes=hidden_sizes, acts=acts, pre_act=pre_act
                      )
                 )
         self.conv_kwargs = conv_kwargs
@@ -228,7 +244,7 @@ class LinearAct(torch.nn.Sequential):
         # save all inputs so that the can be used later for transfer learning
         linear_kwargs.update(
                 dict(in_features=in_features, out_features=out_features,
-                     hidden_sizes=hidden_sizes, acts=acts
+                     hidden_sizes=hidden_sizes, acts=acts, pre_act=pre_act
                      )
                 )
         self.linear_kwargs = linear_kwargs
@@ -274,17 +290,14 @@ class SplineNet(Module):
 
         Parameters
         ----------
-        knots_x : int
-             number of knots of the spline.
-        xlim : array-like
-             the min and max values for `x` of the knots.
-        ylim : tuple
-             the min and max values for `y` of the knots.
-        .
-        .
-        .
+        knots_len : int
+            number of knots of the spline.
+        xlim & ylim : array-like
+            the min and max values for `x` & `y` of the knots.
+        knots_x & knots_y & knots_d : None or tensors, optional
+            fix corresponding tensors to the input if provided.
 
-        spline_shape : array-like
+        spline_shape : array-like (IS USED AT ALL?)
             specifies number of splines organized as a tensor
             (default is [], indicating there is only one spline).
 
@@ -294,11 +307,10 @@ class SplineNet(Module):
         """
         super().__init__(label=label)
 
-        # knots_len and spline_shape are relevant only if rel_flag is True
-        rel_flag = (knots_x is None) or (knots_y is None) or (knots_d is None)
+        # knots_len and spline_shape are relevant only if flag is True
+        flag = (knots_x is None) or (knots_y is None) or (knots_d is None)
 
-        if rel_flag and knots_len < 2:
-            raise Exception("Oops: knots_len can't be less than 2 @ SplineNet")
+        assert not (flag and knots_len < 2), "oops: knots_len < 2 for splines"
 
         self.knots_len = knots_len
         self.knots_x = knots_x
@@ -366,51 +378,3 @@ class SplineNet(Module):
         mydict = {'knots_x': knots_x, 'knots_y': knots_y, 'knots_d': knots_d}
 
         return self.Spline(**mydict, **self.spline_kwargs)
-
-
-class Expit(Module):
-    """This can be also called Sigmoid"""
-
-    def forward(self, x):
-        return 1/(1 + torch.exp(-x))
-
-    def backward(self, x):
-        return Logit().forward(x)
-
-
-class Logit(Module):
-    """This is inverse of Sigmoid"""
-
-    def forward(self, x):
-        return torch.log(x/(1 - x))
-
-    def backward(self, x):
-        return Expit().forward(x)
-
-
-class DistConvertor(SplineNet):
-    """A probability distribution convertor...
-
-    Steps: pass through Expit, SplineNet, and Logit
-    """
-
-    def __init__(self, *args, symmetric=False, **kwargs):
-        if symmetric:
-            extra = dict(xlim=(0.5, 1), ylim=(0.5, 1), extrap={'left':'anti'})
-        else:
-            extra = dict(xlim=(0, 1), ylim=(0, 1))
-        super().__init__(*args, **kwargs, **extra)
-        self.expit = Expit()
-        self.logit = Logit()
-
-    def forward(self, x):
-        return self.logit(super().forward(self.expit(x)))
-
-    def backward(self, x):
-        # Note that logit.backward = expit.forward
-        return self.logit(super().backward(self.expit(x)))
-
-    def cdf_mapper(self, x):
-        """Useful for mapping the CDF of inputs to the CDF of outputs."""
-        # The input `x` is expected to be in range 0 to 1.
-        return super().forward(x)
