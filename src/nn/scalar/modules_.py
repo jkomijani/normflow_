@@ -1,12 +1,11 @@
 # Copyright (c) 2021-2022 Javad Komijani
 
-"""This module contains new neural networks that
-1. are children of Module_,
-2. do NOT couple sites to each other.
+"""
+This module contains new neural networks that are subclasses of Module_ and
+do not couple sites to each other.
 
-Note that as in Module_ itself, the trailing underscore implies that
-the associated forward and backward methods handle the Jacobians of
-the transformation.
+As in Module_, the trailing underscore implies that the associated forward and
+backward methods handle the Jacobians of the transformation.
 """
 
 
@@ -40,7 +39,6 @@ class Clone_(Module_):
 
     def backward(self, x, log0=0, **extra):
         return x.clone(), log0
-
 
 
 class ScaleNet_(Module_):
@@ -191,13 +189,9 @@ class DistConvertor_(ModuleList_):
         super().__init__(nets_)
         self.label = label
 
-    def cdf_mapper(self, x):
+    def cdf_mapper(self, cdf):
         """Useful for mapping the CDF of inputs to the CDF of outputs."""
-        # The input `x` is expected to be in range 0 to 1.
-        return self.get_spline_.forward(x)
-
-    def transfer(self, **kwargs):
-        return copy.deepcopy(self)
+        return self.get_spline_(cdf)  # cdf \in [0, 1].
 
     @property
     def get_spline_(self):
