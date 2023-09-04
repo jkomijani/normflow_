@@ -344,8 +344,7 @@ class RQSplineCoupling_(Coupling_):
 
     def transfer(self, scale_factor=1, mask=None, **extra):
         return self.__class__(
-                self.net0.transfer(scale_factor=scale_factor),
-                self.net1.transfer(scale_factor=scale_factor),
+                [net.transfer(scale_factor=scale_factor) for net in self.nets],
                 mask=self.mask if mask is None else mask,
                 label=self.label,
                 channels_axis=self.channels_axis,
@@ -510,8 +509,7 @@ class MultiRQSplineCoupling_(Coupling_):
 
     def transfer(self, scale_factor=1, mask=None, **extra):
         return self.__class__(
-                self.net0.transfer(scale_factor=scale_factor),
-                self.net1.transfer(scale_factor=scale_factor),
+                [net.transfer(scale_factor=scale_factor) for net in self.nets],
                 mask=self.mask if mask is None else mask,
                 label=self.label,
                 channels_axis=self.channels_axis,
