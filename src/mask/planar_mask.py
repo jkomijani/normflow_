@@ -4,7 +4,6 @@
 
 
 import torch
-from .mask import Mask
 
 
 class ZebraPlanarMask:
@@ -57,6 +56,3 @@ class ZebraPlanarMask:
         subshape = [ell for ell in self.shape]
         subshape[self.nu] = subshape[self.nu] // 2
         return subshape
-
-    def make_submask(self, **kwargs):
-        return Mask(self.subshape, **kwargs)
