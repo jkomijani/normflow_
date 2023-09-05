@@ -15,5 +15,4 @@ from . import action
 from . import mask
 from . import nn
 from . import prior
-from . import util
 from . import mcmc

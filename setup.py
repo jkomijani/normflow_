@@ -27,11 +27,7 @@ packages = [
         'normflow.nn.gauge',
         'normflow.nn.matrix',
         'normflow.nn.scalar',
-        'normflow.prior',
-        'normflow.util',
-        'normflow.util.assembler',
-        'normflow.util.measure',
-        'normflow.util.models'
+        'normflow.prior'
         ]
 
 package_dir = {
@@ -52,11 +48,7 @@ package_dir = {
         'normflow.nn.gauge': 'src/nn/gauge',
         'normflow.nn.matrix': 'src/nn/matrix',
         'normflow.nn.scalar': 'src/nn/scalar',
-        'normflow.prior': 'src/prior',
-        'normflow.util': 'src/util',
-        'normflow.util.assembler': 'src/util/assembler',
-        'normflow.util.measure': 'src/util/measure',
-        'normflow.util.models': 'src/util/models'
+        'normflow.prior': 'src/prior'
         }
 
 setup(name='normflow',
