@@ -63,7 +63,7 @@ def main(*, lat_shape, m_sq, lambd, kappa=1, a=1, eff_mass2=None,
         print(net_)
 
     action_dict = dict(kappa=kappa, m_sq=m_sq, lambd=lambd, a=a)
-    action = ScalarPhi4Action(**action_dict, ndim=len(lat_shape))
+    action = ScalarPhi4Action(**action_dict)
 
     model = Model(net_=net_, prior=prior, action=action)
 
@@ -89,8 +89,8 @@ def fit(model, *, n_epochs, batch_size):
     SchedulerClass = torch.optim.lr_scheduler.CosineAnnealingLR
     scheduler = lambda optimizer: SchedulerClass(optimizer, n_epochs)
 
-    calc_accept = lambda: "| accept_rate = " + model.mcmc.calc_accept_rate(asstr=True)
-    extra_func = lambda epoch: calc_accept() if epoch % 500 == 0 else ""
+    calc_accept = lambda: " | accept_rate = " + model.mcmc.calc_accept_rate(asstr=True)
+    extra_func = lambda epoch: calc_accept() if epoch % 100 == 0 else ""
 
     checkpoint_dict = dict(print_stride=100, print_extra_func=extra_func)
     hyperparam = dict(lr=0.001, weight_decay=0.)

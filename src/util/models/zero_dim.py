@@ -12,10 +12,10 @@ def main(*, m_sq, lambd, knots_len=10, n_epochs=1000, batch_size=1024):
 
     net_ = DistConvertor_(knots_len, symmetric=True)
 
-    lat_shape = (1, )
+    lat_shape = 1  # zero dimensional problem
     action_dict = dict(kappa=0, m_sq=m_sq, lambd=lambd)
     prior = NormalPrior(shape=lat_shape)
-    action = ScalarPhi4Action(**action_dict, ndim=len(lat_shape))
+    action = ScalarPhi4Action(**action_dict)
 
     model = Model(net_=net_, prior=prior, action=action)
 
@@ -24,8 +24,8 @@ def main(*, m_sq, lambd, knots_len=10, n_epochs=1000, batch_size=1024):
     SchedulerClass = torch.optim.lr_scheduler.CosineAnnealingLR
     scheduler = lambda optimizer: SchedulerClass(optimizer, n_epochs)
 
-    calc_accept = lambda: "| accept_rate = " + model.mcmc.calc_accept_rate(asstr=True)
-    extra_func = lambda epoch: calc_accept() if epoch % 500 == 0 else ""
+    calc_accept = lambda: " | accept_rate = " + model.mcmc.calc_accept_rate(asstr=True)
+    extra_func = lambda epoch: calc_accept() if epoch % 100 == 0 else ""
 
     checkpoint_dict = dict(print_stride=100, print_extra_func=extra_func)
     hyperparam = dict(lr=0.001, weight_decay=0.)
