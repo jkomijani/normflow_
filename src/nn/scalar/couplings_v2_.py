@@ -261,8 +261,8 @@ class RQSplineCoupling_(Coupling_):
         # the above two lines are equivalent to the following for default cases
         # fx_active, g = spline(x_active, grad=True, squeezed=True)
         fx_active = self.mask.purify(fx_active, channel=parity)
-        g = self.mask.purify(g, channel=parity, zero2one=True)
-        return fx_active, log0 + self.sum_density(torch.log(g))
+        logg = self.mask.purify(torch.log(g), channel=parity)
+        return fx_active, log0 + self.sum_density(logg)
 
     def atomic_backward(self, net, *, x_active, x_frozen, parity, log0=0):
         out = net(self.preprocess_fz(x_frozen))
@@ -275,8 +275,8 @@ class RQSplineCoupling_(Coupling_):
         # the above two lines are equivalent to the following for default cases
         # fx_active, g = spline.backward(x_active, grad=True, squeezed=True)
         fx_active = self.mask.purify(fx_active, channel=parity)
-        g = self.mask.purify(g, channel=parity, zero2one=True)
-        return fx_active, log0 + self.sum_density(torch.log(g))
+        logg = self.mask.purify(torch.log(g), channel=parity)
+        return fx_active, log0 + self.sum_density(logg)
 
     def _hack(self, net, *, x_active, x_frozen, parity):
         out = net(self.preprocess_fz(x_frozen))
@@ -286,8 +286,8 @@ class RQSplineCoupling_(Coupling_):
         fx_active, g = spline(self.preprocess(x_active), grad=True)
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
         fx_active = self.mask.purify(fx_active, channel=parity)
-        g = self.mask.purify(g, channel=parity, zero2one=True)
-        return spline, fx_active, g
+        logg = self.mask.purify(torch.log(g), channel=parity)
+        return spline, fx_active, logg
 
     def make_spline(self, out):
         # `out` is the output of net(in)
@@ -402,8 +402,8 @@ class MultiRQSplineCoupling_(Coupling_):
         fx_active, g = self.apply_spline(self.preprocess(x_active), spline)
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
         fx_active = self.mask.purify(fx_active, channel=parity)
-        g = self.mask.purify(g, channel=parity, zero2one=True)
-        return fx_active, log0 + self.sum_density(torch.log(g))
+        logg = self.mask.purify(torch.log(g), channel=parity)
+        return fx_active, log0 + self.sum_density(logg)
 
     def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
@@ -416,8 +416,8 @@ class MultiRQSplineCoupling_(Coupling_):
                 )
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
         fx_active = self.mask.purify(fx_active, channel=parity)
-        g = self.mask.purify(g, channel=parity, zero2one=True)
-        return fx_active, log0 + self.sum_density(torch.log(g))
+        logg = self.mask.purify(torch.log(g), channel=parity)
+        return fx_active, log0 + self.sum_density(logg)
 
     def preprocess(self, x):
         xs = torch.tensor_split(
