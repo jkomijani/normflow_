@@ -41,22 +41,15 @@ class Coupling_(Module_, ABC):
     channels_axis : int, optional
         The channel axis in the outputs of nets (default is 1).
 
-    zee2sym : bool, optional
-        If True, the code explicitely implements the Z(2) symmetry, assuming
-        that `nets` already respect Z(2) summetry (default is False).
-
     label : str
         Can be used for unique labeling of NNs.
     """
 
-    def __init__(self,
-            nets, *, mask, channels_axis=1, zee2sym=False, label='coupling_'
-            ):
+    def __init__(self, nets, *, mask, channels_axis=1, label='coupling_'):
         super().__init__(label=label)
         self.nets = torch.nn.ModuleList(nets)
         self.mask = mask
         self.channels_axis = channels_axis
-        self.zee2sym = zee2sym
 
     def forward(self, x, log0=0):
         x = list(self.mask.split(x))  # x = [x_0, x_1]
@@ -106,8 +99,7 @@ class Coupling_(Module_, ABC):
                 [net.transfer(scale_factor=scale_factor) for net in self.nets],
                 mask=self.mask if mask is None else mask,
                 label=self.label,
-                channels_axis=self.channels_axis,
-                zee2sym=self.zee2sym
+                channels_axis=self.channels_axis
                 )
 
 
@@ -199,8 +191,7 @@ class AffineCoupling_(Coupling_):
         # purify: get rid of unwanted contributions to x_frozen
         t = self.mask.purify(self.postprocess(t), channel=parity)
         s = self.mask.purify(self.postprocess(s), channel=parity)
-        if self.zee2sym:
-            s = torch.abs(s)
+        s = torch.abs(s)  # then exp(-s) is never larger than 1
         return t + x_active * torch.exp(-s), log0 - self.sum_density(s)
 
     def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
@@ -209,8 +200,7 @@ class AffineCoupling_(Coupling_):
         # purify: get rid of unwanted contributions to x_frozen
         t = self.mask.purify(self.postprocess(t), channel=parity)
         s = self.mask.purify(self.postprocess(s), channel=parity)
-        if self.zee2sym:
-            s = torch.abs(s)
+        s = torch.abs(s)
         return (x_active - t) * torch.exp(s), log0 + self.sum_density(s)
 
 
@@ -252,8 +242,6 @@ class RQSplineCoupling_(Coupling_):
 
     def atomic_forward(self, net, *, x_active, x_frozen, parity, log0=0):
         out = net(self.preprocess_fz(x_frozen))
-        if self.zee2sym:
-            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = spline(self.preprocess(x_active), grad=True)
@@ -266,8 +254,6 @@ class RQSplineCoupling_(Coupling_):
 
     def atomic_backward(self, net, *, x_active, x_frozen, parity, log0=0):
         out = net(self.preprocess_fz(x_frozen))
-        if self.zee2sym:
-            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = spline.backward(self.preprocess(x_active), grad=True)
@@ -280,8 +266,6 @@ class RQSplineCoupling_(Coupling_):
 
     def _hack(self, net, *, x_active, x_frozen, parity):
         out = net(self.preprocess_fz(x_frozen))
-        if self.zee2sym:
-            out = torch.abs(out)
         spline = self.make_spline(out)
         fx_active, g = spline(self.preprocess(x_active), grad=True)
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
@@ -395,8 +379,6 @@ class MultiRQSplineCoupling_(Coupling_):
 
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
-        if self.zee2sym:
-            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = self.apply_spline(self.preprocess(x_active), spline)
@@ -407,8 +389,6 @@ class MultiRQSplineCoupling_(Coupling_):
 
     def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
-        if self.zee2sym:
-            out = torch.abs(out)
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = self.apply_spline(
