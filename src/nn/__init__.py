@@ -11,8 +11,8 @@ from .scalar.couplings_ import RQSplineBlock_, MultiRQSplineBlock_
 
 from .scalar.couplings_v2_ import ShiftCoupling_, AffineCoupling_
 from .scalar.couplings_v2_ import RQSplineCoupling_, MultiRQSplineCoupling_
-from .scalar.couplings_v2_ import CntrShiftCoupling_, CntrAffineCoupling_
-from .scalar.couplings_v2_ import CntrRQSplineCoupling_, CntrMultiRQSplineCoupling_
+from .scalar.cntr_couplings_ import CntrShiftCoupling_, CntrAffineCoupling_
+from .scalar.cntr_couplings_ import CntrRQSplineCoupling_, CntrMultiRQSplineCoupling_
 
 from .scalar.fftflow_ import FFTNet_
 from .scalar.meanfield_ import MeanFieldNet_

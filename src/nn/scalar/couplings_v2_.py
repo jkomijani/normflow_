@@ -104,71 +104,6 @@ class Coupling_(Module_, ABC):
 
 
 # =============================================================================
-class DirectCntrCoupling_(Coupling_):
-    """A "controlled" version of Coupling_."""
-
-    def forward(self, x_and_control, log0=0):
-        x, control = x_and_control
-        x = list(self.mask.split(x))  # x = [x_0, x_1]
-        for k, net in enumerate(self.nets):
-            parity = k % 2
-            x_frozen = control if k == 0 else x[1 - parity]
-            x[parity], log0 = self.atomic_forward(
-                                                  x_active=x[parity],
-                                                  x_frozen=x_frozen,
-                                                  parity=parity,
-                                                  net=net,
-                                                  log0=log0
-                                                  )
-        x_and_control = (self.mask.cat(*x), control)
-        return x_and_control, log0
-
-    def backward(self, x_and_control, log0=0):
-        x, control = x_and_control
-        x = list(self.mask.split(x))  # x = [x_0, x_1]
-        for k in list(range(len(self.nets)))[::-1]:
-            parity = k % 2
-            x_frozen = control if k == 0 else x[1 - parity]
-            x[parity], log0 = self.atomic_backward(
-                                                  x_active=x[parity],
-                                                  x_frozen=x_frozen,
-                                                  parity=parity,
-                                                  net=self.nets[k],
-                                                  log0=log0
-                                                  )
-        x_and_control = (self.mask.cat(*x), control)
-        return x_and_control, log0
-
-
-class CntrCoupling_(DirectCntrCoupling_):
-    """Similar to DirectCntrCoupling_ except that it is not direct; the
-    user will not see the control term.
-
-    This class accepts a generator at the time of instantiating.
-    In each call, a control term will be generated for controling the output,
-    but the will not be returned; the control term will be saved for a
-    reference, but will be replaced in the next call.
-    """
-
-    def __init__(self, *args, control_generator=None, **kwargs):
-
-        super().__init__(*args, **kwargs)
-
-        self.control_generator = control_generator
-        self.control = None
-
-    def forward(self, x, log0=0):
-        batch_size = x.shape[0]
-        self.control = self.control_generator(batch_size)
-        (x, control), log0 = super().forward((x, self.control), log0=log0)
-        return x, log0
-
-    def backward(self, x, log0=0):
-        (x, control), log0 = super().backward((x, self.control), log0=log0)
-        return x, log0
-
-
-# =============================================================================
 class ShiftCoupling_(Coupling_):
     """A Coupling_ with shift transformations."""
 
@@ -240,7 +175,7 @@ class RQSplineCoupling_(Coupling_):
         # returns 1. With this setting it would be easy to set the derivatives
         # to 1 (with zero inputs).
 
-    def atomic_forward(self, net, *, x_active, x_frozen, parity, log0=0):
+    def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
@@ -252,7 +187,7 @@ class RQSplineCoupling_(Coupling_):
         logg = self.mask.purify(torch.log(g), channel=parity)
         return fx_active, log0 + self.sum_density(logg)
 
-    def atomic_backward(self, net, *, x_active, x_frozen, parity, log0=0):
+    def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
@@ -264,7 +199,7 @@ class RQSplineCoupling_(Coupling_):
         logg = self.mask.purify(torch.log(g), channel=parity)
         return fx_active, log0 + self.sum_density(logg)
 
-    def _hack(self, net, *, x_active, x_frozen, parity):
+    def _hack(self, *, x_active, x_frozen, parity, net):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
         fx_active, g = spline(self.preprocess(x_active), grad=True)
@@ -499,20 +434,3 @@ class MultiRQSplineCoupling_(Coupling_):
                 knots_y=self.knots_y,
                 extrap=self.extraps
                 )
-
-
-# =============================================================================
-class CntrShiftCoupling_(CntrCoupling_, ShiftCoupling_):
-    pass
-
-
-class CntrAffineCoupling_(CntrCoupling_, AffineCoupling_):
-    pass
-
-
-class CntrRQSplineCoupling_(CntrCoupling_, RQSplineCoupling_):
-    pass
-
-
-class CntrMultiRQSplineCoupling_(CntrCoupling_, MultiRQSplineCoupling_):
-    pass
