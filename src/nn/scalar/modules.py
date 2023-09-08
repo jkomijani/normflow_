@@ -52,6 +52,17 @@ ACTIVATIONS = torch.nn.ModuleDict(
               )
 
 
+class PlusBias(torch.nn.Module):
+
+    def __init__(self, out_features):
+        super().__init__()
+        self.out_features = out_features
+        self.bias = torch.nn.Parameter(torch.randn(out_features))
+
+    def forward(self, x):
+        return x + self.bias
+
+
 class Module(torch.nn.Module):
     """A prototype class with transfer method and label."""
 
@@ -157,6 +168,7 @@ class ConvAct(torch.nn.Sequential):
                 torch.nn.init.zeros_(param)
 
     def transfer(self, scale_factor=1, **extra):
+        # Outdated.; must be updated
         """
         Returns a copy of the current module if scale_factor is 1.
         Otherwise, uses the input scale_factor to resize the kernel size.
@@ -225,7 +237,8 @@ class LinearAct(torch.nn.Sequential):
             hidden_sizes = [],
             acts = [None],
             pre_act = None,
-            **linear_kwargs  # all other kwargs to pass to torch.nn.Conv?d
+            final_bias = False,  # e.g., can be used with 'abs' activation
+            **linear_kwargs  # all other kwargs to pass to torch.nn.Linear
             ):
 
         Linear = torch.nn.Linear
@@ -238,6 +251,9 @@ class LinearAct(torch.nn.Sequential):
             nets.append(Linear(sizes[i], sizes[i+1], **linear_kwargs))
             if act is not None:
                 nets.append(ACTIVATIONS[act])
+
+        if final_bias:
+            nets.append(PlusBias(out_features))
 
         super().__init__(*nets)
 
