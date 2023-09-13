@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import normflow
 
-calc_conjugacy_vol = normflow.lib.eig_handle.SU3MatrixParametrizer.calc_conjugacy_vol
+calc_conjugacy_vol = normflow.lib.matrix_handles.SU3MatrixParametrizer.calc_conjugacy_vol
 
 pi = np.pi
 

@@ -6,8 +6,8 @@ from normflow.nn import MultiChannelModule_
 from normflow.nn import MatrixModule_, UnityDistConvertor_, PhaseDistConvertor_
 from normflow.action import MatrixAction
 from normflow.prior import SUnPrior
-from normflow.lib.eig_handle import SUnMatrixParametrizer
-from normflow.lib.eig_handle import SU2MatrixParametrizer, SU3MatrixParametrizer
+from normflow.lib.matrix_handles import SUnMatrixParametrizer
+from normflow.lib.matrix_handles import SU2MatrixParametrizer, SU3MatrixParametrizer
 
 import normflow
 

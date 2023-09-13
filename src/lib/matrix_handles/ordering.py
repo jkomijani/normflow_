@@ -190,7 +190,7 @@ class ModalOrder:
 
            > prior = normflow.prior.SUnPrior(n=3)
            > mat = prior.sample(10000)
-           > ModalOrder = normflow.lib.eig_handle.ordering.ModalOrder
+           > ModalOrder = normflow.lib.matrix_handles.ordering.ModalOrder
            > ModalOrder._modal_argsort_sanitycheck(mat, row=None)
            ... tensor(0)
            > ModalOrder._modal_argsort_sanitycheck(mat, row=0)
