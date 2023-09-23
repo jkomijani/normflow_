@@ -3,11 +3,11 @@
 """This module has extensions to the linalg packages in torch or numpy."""
 
 try:
-    from torch_linalg_ext import svd, eigh, eigsu
+    from torch_linalg_ext import svd, eigh, eigu
 
 except:
     print("Warning: Could not locate torch_linalg_ext; uses torch.linalg")
-    from torch.linalg import svd, eigh, eig as eigsu
+    from torch.linalg import svd, eigh, eig as eigu
 
 
 from .qr_decomposition import haar_qr, haar_sqr
