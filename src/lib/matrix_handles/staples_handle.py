@@ -5,6 +5,7 @@
 
 import torch
 from ..linalg import svd
+from ..linalg import append_suvh  # append sUVh
 
 mul = torch.matmul
 
@@ -13,7 +14,10 @@ mul = torch.matmul
 class TemplateStaplesHandle:
 
     def __init__(self, staples=None):
-        self.staples_svd = None if staples is None else svd(staples)
+        if staples is None:
+            self.staples_svd = None
+        else:
+            self.staples_svd = append_suvh(svd(staples))
 
     def staple(self, link, staples=None):
         """
@@ -24,25 +28,25 @@ class TemplateStaplesHandle:
         instantiated will be used.
         """
         if staples is not None:
-            self.staples_svd = svd(staples)
+            self.staples_svd = append_suvh(svd(staples))
 
         svd_ = self.staples_svd
-        if svd_ is None:
-            raise Exception("staples are not defined!")
+
+        assert (svd_ is not None), "Staples are not defined!"
 
         eff_proj_plaq = link @ svd_.sUVh
-        extra = torch.cat([svd_.S, torch.view_as_real(svd_.det_uvh)], dim=-1)
+        extra = torch.cat([svd_.S, torch.view_as_real(svd_.rdet_uvh)], dim=-1)
         return eff_proj_plaq, extra
 
     def unstaple(self, eff_proj_plaq, staples=None):
         # see self.push2links, which is used instead of unstaple
 
         if staples is not None:
-            self.staples_svd = svd(staples)
+            self.staples_svd = append_suvh(svd(staples))
 
         svd_ = self.staples_svd
-        if svd_ is None:
-            raise Exception("staples are not defined!")
+
+        assert (svd_ is not None), "Staples are not defined!"
 
         link = eff_proj_plaq @ svd_.sUVh.adjoint()
         return link
