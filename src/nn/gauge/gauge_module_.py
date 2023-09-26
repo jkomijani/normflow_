@@ -65,14 +65,13 @@ class GaugeModule_(MatrixModule_):
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
-        # plaq, means effective open plaquettes, which are SU(n) matrices.
-        plaq_0, _ = self.staples_handle.staple(x_mu, staples=staples)
+        # slink: stapled link
+        slink, svd_ = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq_1, logJ = super().forward(plaq_0, log0, reduce_=True)
-        plaq_0 = None  # because reduce_ is set to True above
+        slink_rotation, logJ = super().forward(slink, log0, reduce_=True)
 
-        x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
+        x_mu = self.staples_handle.push2link(
+                x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
         x[:, self.mu] = x_mu
@@ -86,13 +85,12 @@ class GaugeModule_(MatrixModule_):
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
-        plaq_0, _ = self.staples_handle.staple(x_mu, staples=staples)
+        slink, svd_ = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq_1, logJ = super().backward(plaq_0, log0, reduce_=True)
-        plaq_0 = None  # because reduce_ is set to True above
+        slink_rotation, logJ = super().backward(slink, log0, reduce_=True)
 
-        x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
+        x_mu = self.staples_handle.push2link(
+                x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
         x[:, self.mu] = x_mu
@@ -109,16 +107,15 @@ class GaugeModule_(MatrixModule_):
                 )
         stack = [(x_mu, staples)]
         # below, sv stands for singular values (corres. to staples)
-        plaq_0, _ = self.staples_handle.staple(x_mu, staples=staples)
-        stack.append((plaq_0,))
+        slink, svd_ = self.staples_handle.staple(x_mu, staples=staples)
+        stack.append((slink,))
 
-        plaq_1, logJ = super().forward(plaq_0, log0, reduce_=True)
-        plaq_0 = None  # because reduce_ is set to True above
-        stack.append(super()._hack(plaq_0))
-        stack.append((plaq_1, logJ))
+        slink_rotation, logJ = super().forward(slink, log0, reduce_=True)
+        stack.append(super()._hack(slink))
+        stack.append((slink_rotation, logJ))
 
-        x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
+        x_mu = self.staples_handle.push2link(
+                x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
         stack.append((x_mu,))
 
@@ -139,6 +136,9 @@ class GaugeModule_(MatrixModule_):
 
 # =============================================================================
 class SVDGaugeModule_(StapledMatrixModule_):
+
+    #   *** NOT UPDATED ***
+
     """
     Similar to GaugeModule_ but used singular values of the staples for
     processing.
