@@ -12,7 +12,7 @@ mul = torch.matmul
 # =============================================================================
 class TemplateStaplesHandle:
 
-    def __init__(self, onesided=True):
+    def __init__(self, onesided=False):
         self.onesided = onesided
 
     def staple(self, link, *, staples):
