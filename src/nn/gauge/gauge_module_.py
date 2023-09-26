@@ -50,15 +50,13 @@ class GaugeModule_(MatrixModule_):
     """
 
     def __init__(self, net_,
-            *, mu, nu_list, staples_handle, matrix_handle,
-            clean=True, label="gauge_"
+            *, mu, nu_list, staples_handle, matrix_handle, label="gauge_"
             ):
         super().__init__(net_, matrix_handle=matrix_handle)
         self.mu = mu
         self.nu_list = nu_list
         self.staples_handle = staples_handle
         self.label = label
-        self.clean = clean
 
     @ddp_wrapper
     def forward(self, x, log0=0):
@@ -79,9 +77,6 @@ class GaugeModule_(MatrixModule_):
 
         x[:, self.mu] = x_mu
 
-        if self.clean:
-            self.staples_handle.free_memory()
-
         return x, logJ
 
     @ddp_wrapper
@@ -101,9 +96,6 @@ class GaugeModule_(MatrixModule_):
                 )
 
         x[:, self.mu] = x_mu
-
-        if self.clean:
-            self.staples_handle.free_memory()
 
         return x, logJ
 
@@ -131,9 +123,6 @@ class GaugeModule_(MatrixModule_):
         stack.append((x_mu,))
 
         x[:, self.mu] = x_mu
-
-        if self.clean:
-            self.staples_handle.free_memory()
 
         return stack
 
@@ -180,17 +169,13 @@ class SVDGaugeModule_(StapledMatrixModule_):
     """
 
     def __init__(self, net_,
-            *, mu, nu_list, staples_handle, matrix_handle, mask,
-            clean=True, label="gauge_"
+            *, mu, nu_list, staples_handle, matrix_handle, mask, label="gauge_"
             ):
-        super().__init__(
-                net_, matrix_handle=matrix_handle, mask=mask, clean=clean
-                )
+        super().__init__(net_, matrix_handle=matrix_handle, mask=mask)
         self.mu = mu
         self.nu_list = nu_list
         self.staples_handle = staples_handle
         self.label = label
-        self.clean = clean
 
     @ddp_wrapper
     def forward(self, x, log0=0):
@@ -214,9 +199,6 @@ class SVDGaugeModule_(StapledMatrixModule_):
 
         x[:, self.mu] = x_mu
 
-        if self.clean:
-            self.staples_handle.free_memory()
-
         return x, logJ
 
     @ddp_wrapper
@@ -239,9 +221,6 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 )
 
         x[:, self.mu] = x_mu
-
-        if self.clean:
-            self.staples_handle.free_memory()
 
         return x, logJ
 
@@ -271,9 +250,6 @@ class SVDGaugeModule_(StapledMatrixModule_):
         stack.append((x_mu,))
 
         x[:, self.mu] = x_mu
-
-        if self.clean:
-            self.staples_handle.free_memory()
 
         return stack
 

@@ -17,9 +17,7 @@ from .matrix_module_ import MatrixModule_
 # =============================================================================
 class StapledMatrixModule_(Module_):
 
-    def __init__(self,
-            net_, *, matrix_handle, mask, clean=True, label="matrix_module_"
-            ):
+    def __init__(self, net_, *, matrix_handle, mask, label="matrix_module_"):
         """A wrapper to transform matrices using the given network `net_`
         and the parametrization specified in `matrix_handle`.
         For more information on how `matrix_handle` is used, see self._kernel.
@@ -28,7 +26,6 @@ class StapledMatrixModule_(Module_):
         self.net_ = net_
         self.mask = mask
         self.matrix_handle = matrix_handle
-        self.clean = clean
 
     def forward(self, x, *, staples_sv, log0=0, reduce_=False):
         return self._kernel(
@@ -78,9 +75,6 @@ class StapledMatrixModule_(Module_):
 
         logJ = logJ_mat2par + logJ_par2par + logJ_par2mat
 
-        if self.clean:
-            self.matrix_handle.free_memory()
-
         return x, log0 + logJ
 
     def _hack(self, x, *, staples_sv, log0=0, reduce_=False):
@@ -100,8 +94,7 @@ class StapledMatrixModule_(Module_):
 
         x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
         stack.append((x, logJ_par2mat))
-        if self.clean:
-            self.matrix_handle.free_memory()
+
         return stack
 
     def transfer(self, **kwargs):
