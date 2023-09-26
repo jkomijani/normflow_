@@ -4,8 +4,7 @@
 
 
 import torch
-from ..linalg import svd
-from ..linalg import append_suvh  # append sUVh
+from ..linalg import special_svd
 
 mul = torch.matmul
 
@@ -13,52 +12,56 @@ mul = torch.matmul
 # =============================================================================
 class TemplateStaplesHandle:
 
-    def __init__(self, staples=None):
-        if staples is None:
-            self.staples_svd = None
+    def __init__(self, onesided=True):
+        self.onesided = onesided
+
+    def staple(self, link, *, staples):
+        """
+        Return `slink` (stapled link) defined as `link` multiplied by SU(n)
+        matrices that are obtained by performing SVD on the sum of the
+        corresponding `staples.`
+        """
+        svd_ = special_svd(staples)
+        if self.onesided:
+            slink = link @ svd_.sU @ svd_.Vh  # slink stands for stapled link
         else:
-            self.staples_svd = append_suvh(svd(staples))
+            slink = svd_.Vh @ link @ svd_.sU
+        return slink, svd_
 
-    def staple(self, link, staples=None):
+    def unstaple(self, slink, svd_):
+        """Invert the `staple` method.
+
+        For pushing the changes in `slink` to corresponding `link` use the
+        `push2link` method.
         """
-        Return "stapled links" or "effective projected plaquettes" that are
-        defined as the links multiplied by SU(n) matrices obtained by applying
-        SVD on the staples.
-        If staples are not provided the fixed staples used when the class was
-        instantiated will be used.
-        """
-        if staples is not None:
-            self.staples_svd = append_suvh(svd(staples))
+        if self.onesided:
+            link = slink @ (svd_.sU @ svd_.Vh).adjoint()
+        else:
+            link = svd_.Vh.adjoint() @ slink @ svd_.sU.adjoint()
 
-        svd_ = self.staples_svd
-
-        assert (svd_ is not None), "Staples are not defined!"
-
-        eff_proj_plaq = link @ svd_.sUVh
-        extra = torch.cat([svd_.S, torch.view_as_real(svd_.rdet_uvh)], dim=-1)
-        return eff_proj_plaq, extra
-
-    def unstaple(self, eff_proj_plaq, staples=None):
-        # see self.push2links, which is used instead of unstaple
-
-        if staples is not None:
-            self.staples_svd = append_suvh(svd(staples))
-
-        svd_ = self.staples_svd
-
-        assert (svd_ is not None), "Staples are not defined!"
-
-        link = eff_proj_plaq @ svd_.sUVh.adjoint()
         return link
 
-    def push2links(self, link, *, eff_proj_plaq_old, eff_proj_plaq_new):
-        if eff_proj_plaq_old is None:
-            return  eff_proj_plaq_new @ link
-        else:
-            return (eff_proj_plaq_new @ eff_proj_plaq_old.adjoint()) @ link
+    def push2link(self, link, *, slink_rotation, svd_):
 
-    def free_memory(self):
-        self.staples_svd = None
+        if not self.onesided:
+            slink_rotation = svd_.Vh.adjoint() @ slink_rotation @ svd_.Vh
+
+        return slink_rotation @ link
+
+
+# =============================================================================
+class FixedStaplesHandle:
+
+    def __init__(self, staples):
+        self.svd_ = special_svd(staples)
+        self.suvh = svd_.sU @ svd_.Vh
+
+    def staple(self, link):
+        slink = link @ svd_.suvh  # slink stands for stapled link
+        return slink, self.svd_
+
+    def unstaple(self, slink):
+        return slink @ self.suvh.adjoint()
 
 
 # =============================================================================
@@ -143,13 +146,13 @@ class U1WilsonStaplesHandle(WilsonStaplesHandle):
     """Properties and methods are chosen to be consistent with SU(n)."""
 
     def __init__(self):
-        pass
+        pass  # not ready
 
     def staple(self):
-        pass
+        pass  # not ready
 
     def unstaple(self):
-        pass
+        pass  # not ready
 
     @staticmethod
     def staple1_rule(a, b, c):
