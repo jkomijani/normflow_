@@ -26,32 +26,46 @@ class MatrixModule_(Module_):
         self.matrix_handle = matrix_handle
 
     def forward(self, x, log0=0, reduce_=False):
-        return self._kernel(self.net_.forward, x=x, log0=log0, reduce_=reduce_)
+        return self._kernel(x, log0=log0, reduce_=reduce_, forward=True)
 
     def backward(self, x, log0=0, reduce_=False):
-        return self._kernel(self.net_.backward, x=x, log0=log0, reduce_=reduce_)
+        return self._kernel(x, log0=log0, reduce_=reduce_, forward=False)
 
-    def _kernel(self, net_method_, *, x, log0=0, reduce_=False):
-        """Return the transformed x and its Jacobian.
+    def _kernel(self, matrix, log0=0, forward=True, reduce_=False):
+        """Return the transformed matrix and its Jacobian.
 
-        Here are the steps:
-        1. compute independent parameters corresp. to eigenvalues of matrix x,
-        2. transform the parameters,
-        3. construct new matrices with the transformed parameters.
+        To this end, `matrix_handle` is used for parametrizing the input
+        matrix. Then `net_` is used to transform the parameters. Finally,
+        `matrix_handle` is used to construct a new matrix from the transformed
+        parameters.
         """
-        param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
-        # The channel axis, in which the param are listed, should be moved to 1
-        param = torch.movedim(param, -1, 1)  # move channel axis from -1 to 1
-        param, logJ_par2par = net_method_(param)
+        # 1. Parametrize the input matrix
+        param, logJ_mat2par = self.matrix_handle.matrix2param_(matrix)
+
+        # 2. Move the channel axis, in which the param are listed, from -1 to 1
+        param = torch.movedim(param, -1, 1)
+
+        # 3. Transform param
+        if forward:
+            param, logJ_par2par = self.net_.forward(param)
+        else:
+            param, logJ_par2par = self.net_.backward(param)
+
+        # 4. Move back the channel axis to -1
         param = torch.movedim(param, 1, -1)  # return channel axis to -1
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
 
+        # 5. Construct a new matrix from the transformed parameters
+        matrix, logJ_par2mat = \
+                self.matrix_handle.param2matrix_(param, reduce_=reduce_)
+
+        # 6. Add up all log-Jacobians
         logJ = logJ_mat2par + logJ_par2par + logJ_par2mat
-        return x, log0 + logJ
 
-    def _hack(self, x, log0=0, reduce_=False):
+        return matrix, log0 + logJ
+
+    def _hack(self, matrix, log0=0, reduce_=False):
         """Similar to the forward method, but returns intermediate parts too."""
-        param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
+        param, logJ_mat2par = self.matrix_handle.matrix2param_(matrix)
         stack = [(param, logJ_mat2par)]
 
         param = torch.movedim(param, -1, 1)  # move channel axis from -1 to 1
@@ -59,8 +73,9 @@ class MatrixModule_(Module_):
         param = torch.movedim(param, 1, -1)  # return channel axis to -1
         stack.append((param, logJ_par2par))
 
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
-        stack.append((x, logJ_par2mat))
+        matrix, logJ_par2mat = \
+                self.matrix_handle.param2matrix_(param, reduce_=reduce_)
+        stack.append((matrix, logJ_par2mat))
         return stack
 
     def transfer(self, **kwargs):
