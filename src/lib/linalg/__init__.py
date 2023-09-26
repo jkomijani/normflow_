@@ -35,10 +35,13 @@ class AttributeDict4SVD:
         return str_
 
 
-def append_suvh(svd):
-    """Return a new svd object that includes U V^\dagger"""
-    uvh = svd.U @ svd.Vh
-    rdet = torch.det(uvh)**(1 / uvh.shape[-1])  # root of determinant
-    # We now make determinant of uvh unity:
-    uvh = uvh / rdet.reshape(*rdet.shape, 1, 1)
-    return AttributeDict4SVD(U=svd.U, S=svd.S, Vh=svd.Vh, rdet_uvh=rdet, sUVh=uvh)
+def special_svd(matrix):
+    """Return a new svd object, in which U is scaled by a phase, and called sU,
+    such that sU @ Vh is special unitary
+    """
+    svd_ = svd(matrix)
+    rdet_angle = torch.angle(torch.det(matrix)) / svd_.U.shape[-1]  # r: rooted
+    s_u = svd_.U * torch.exp(-1j * det_angle.reshape(*rdet_angle.shape, 1, 1))
+    return AttributeDict4SVD(
+        U=svd.U, S=svd.S, Vh=svd.Vh, rdet_angle=rdet_anlge, sU=s_u
+        )
