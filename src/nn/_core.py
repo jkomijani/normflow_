@@ -71,13 +71,11 @@ class ModuleList_(torch.nn.ModuleList):
         super().__init__(nets_)
         self.label = label
 
-    # @ddp_wrapper
     def forward(self, x, log0=0):
         for net_ in self:
             x, log0 = net_.forward(x, log0)
         return x, log0
 
-    # @ddp_wrapper
     def backward(self, x, log0=0):
         for net_ in list(self)[::-1]:  # list() is needed for child classes...
             x, log0 = net_.backward(x, log0)
