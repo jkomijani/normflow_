@@ -236,8 +236,8 @@ class Fitter:
             if self.scheduler is not None:
                 self.scheduler.step()
         T2 = time.time()
-        if self.train_metadata['print_time']:
-            print("Time = {:.3g} sec.".format(T2 - T1))
+        if self.train_metadata['print_time'] and n_epochs > 0:
+            print(f"({loss.device}) Time = {T2 - T1:.3g} sec.")
 
     def step(self):
         """Perform a train step with one batch of inputs"""
@@ -372,8 +372,8 @@ class Fitter:
         ess = mydict['ess'][-1]
 
         if epoch == 1:
-            print(f"Training progress: ({ess.device})")
-            print("Device | Epoch | loss | log(z) | log(q/p)"
+            print(f"({ess.device}) Training progress:")
+            print(f"({ess.device}) Epoch | loss | log(z) | log(q/p)"
                   + " with contribution from log(z)"
                   + "; mean & error from samples in a batch:"
                   )
