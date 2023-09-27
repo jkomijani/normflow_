@@ -14,15 +14,10 @@ class Module_(torch.nn.Module):
     and `backward` methods handle the Jacobians of the transformation.
     """
 
-    # We are going to call sum_density with prefix clc, so you need to include
-    # clc as the first argument.
-    # sum_density = lambda clc, x: torch.sum(x, dim=list(range(1, x.dim())))
-    # sum_density is defined as regular method now
-
-    _propagate_density = False
+    propagate_density = False
 
     def sum_density(self, x):
-        if self._propagate_density:
+        if self.propagate_density:
             return x
         else:
             return torch.sum(x, dim=list(range(1, x.dim())))
@@ -46,8 +41,8 @@ class Module_(torch.nn.Module):
 
     @staticmethod
     def _set_propagate_density(propagate_density):
-        """This resets `_propagate_density` for the class."""
-        Module_._propagate_density = propagate_density
+        """This resets `propagate_density` for the Module_ class."""
+        Module_.propagate_density = propagate_density
 
 
 # =============================================================================

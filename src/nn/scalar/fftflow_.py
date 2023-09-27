@@ -212,7 +212,7 @@ class FFTNet_(Module_):
         """logJ is scalar for each sample; this funtion decides whether to
         assign a density to it or not!
         """
-        if Module_._propagate_density:
+        if Module_.propagate_density:
             n = np.product(self.lat_shape)
             ones = torch.ones(*logJ.shape, n)
             return (logJ.unsqueeze(-1) / n * ones).reshape(*logJ.shape, *self.lat_shape)

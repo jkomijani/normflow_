@@ -14,10 +14,11 @@ from abc import abstractmethod, ABC
 class Prior(ABC):
     """A template class to initiate a prior distribution."""
 
-    def __init__(self, dist, seed=None, propagate_density=False):
+    propagate_density = False
+
+    def __init__(self, dist, seed=None):
         self.dist = dist
         Prior.manual_seed(seed)
-        self._propagate_density = propagate_density  # for test
 
     def sample(self, batch_size=1):
         return self.dist.sample((batch_size,))
@@ -28,14 +29,16 @@ class Prior(ABC):
 
     def log_prob(self, x):
         log_prob_density = self.dist.log_prob(x)
-        if self._propagate_density:
+        if self.propagate_density:
             return log_prob_density
         else:
             dim = range(1, len(log_prob_density.shape))  # 0: batch axis
             return torch.sum(log_prob_density, dim=tuple(dim))
 
-    def _set_propagate_density(self, propagate_density):  # for test
-        self._propagate_density = propagate_density
+    @staticmethod
+    def _set_propagate_density(propagate_density):
+        """This resets `propagate_density` for the Prior class."""
+        Prior.propagate_density = propagate_density
 
     @staticmethod
     def manual_seed(seed):

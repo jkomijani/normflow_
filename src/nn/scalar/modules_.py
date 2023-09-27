@@ -55,7 +55,7 @@ class ScaleNet_(Module_):
         return x / torch.exp(self.logw), log0 - self.log_jacobian(x.shape)
 
     def log_jacobian(self, x_shape):
-        if Module_._propagate_density:
+        if Module_.propagate_density:
             return self.logw * torch.ones(x_shape)
         else:
             logwscaled = self.logw * np.product(x_shape[1:])
@@ -238,26 +238,21 @@ class MaskedWrapperNet_(Module_):
     """
 
     def __init__(self, net_, *, mask):
-        super().__init__(label='wrapper'+net_.label)
+        super().__init__(label=f'wrapper{net_.label}')
         self.net_ = net_
         self.mask = mask
-        self.original_net_sum_density = self.net_.sum_density
-        self.net_.sum_density = lambda x: x
+        self.net_.propagate_density = True  # does not sum the density
 
     def forward(self, x, log0=0):
         x_active, x_frozen = self.mask.split(x)
         x_active, logJ_density = self.net_.forward(x_active)
         x_active = self.mask.purify(x_active, channel=0)
-        logJ = self.original_net_sum_density(
-                self.mask.purify(logJ_density, channel=0)
-                )
+        logJ = self.sum_density(self.mask.purify(logJ_density, channel=0))
         return self.mask.cat(x_active, x_frozen), log0 + logJ
 
     def backward(self, x, log0=0):
         x_active, x_frozen = self.mask.split(x)
         x_active, logJ_density = self.net_.backward(x_active)
         x_active = self.mask.purify(x_active, channel=0)
-        logJ = self.original_net_sum_density(
-                self.mask.purify(logJ_density, channel=0)
-                )
+        logJ = self.sum_density(self.mask.purify(logJ_density, channel=0))
         return self.mask.cat(x_active, x_frozen), log0 + logJ
