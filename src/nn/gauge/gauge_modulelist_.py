@@ -8,15 +8,6 @@ import numpy as np
 
 from .._core import Module_, ModuleList_
 
-def ddp_wrapper(func):
-    def identity(x):
-        return x
-    # for unknown reason, this resolves a problem of in-place modified tensors during .forward() call
-    def wrapper(*args, **kwargs):
-        with torch.autograd.graph.saved_tensors_hooks(pack_hook=identity, unpack_hook=identity):
-            output = func(*args, **kwargs)
-        return output
-    return wrapper
 
 # =============================================================================
 class GaugeModuleList_(torch.nn.ModuleList):
@@ -40,7 +31,6 @@ class GaugeModuleList_(torch.nn.ModuleList):
         super().__init__(nets_)
         self.label = label
 
-    @ddp_wrapper
     def forward(self, x, log0=0):
         x = list(torch.unbind(x, self.vector_axis))
         for net_ in self:
@@ -49,7 +39,6 @@ class GaugeModuleList_(torch.nn.ModuleList):
             x[mu], log0 = net_.forward(x[mu], x[nu], log0=log0)
         return torch.stack(x, dim=self.vector_axis), log0
 
-    @ddp_wrapper
     def backward(self, x, log0=0):
         x = list(torch.unbind(x, self.vector_axis))
         for net_ in self[::-1]:

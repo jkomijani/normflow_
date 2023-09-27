@@ -15,17 +15,6 @@ from ..matrix.matrix_module_ import MatrixModule_
 from ..matrix.stapled_matrix_module_ import StapledMatrixModule_
 
 
-def ddp_wrapper(func):
-    def identity(x):
-        return x
-    # This resolves a problem of in-place modified tensors in .forward() call
-    def wrapper(*args, **kwargs):
-        with torch.autograd.graph.saved_tensors_hooks(pack_hook=identity, unpack_hook=identity):
-            output = func(*args, **kwargs)
-        return output
-    return wrapper
-
-
 # =============================================================================
 class GaugeModule_(MatrixModule_):
     """
@@ -58,7 +47,6 @@ class GaugeModule_(MatrixModule_):
         self.staples_handle = staples_handle
         self.label = label
 
-    @ddp_wrapper
     def forward(self, x, log0=0):
         x_mu = x[:, self.mu]
 
@@ -78,7 +66,6 @@ class GaugeModule_(MatrixModule_):
 
         return x, logJ
 
-    @ddp_wrapper
     def backward(self, x, log0=0):
         x_mu = x[:, self.mu]
 
@@ -97,7 +84,6 @@ class GaugeModule_(MatrixModule_):
 
         return x, logJ
 
-    @ddp_wrapper
     def _hack(self, x, log0=0):
         """Similar to the forward method, but returns intermediate parts."""
         x_mu = x[:, self.mu]
@@ -177,7 +163,6 @@ class SVDGaugeModule_(StapledMatrixModule_):
         self.staples_handle = staples_handle
         self.label = label
 
-    @ddp_wrapper
     def forward(self, x, log0=0):
         x_mu = x[:, self.mu]
 
@@ -201,7 +186,6 @@ class SVDGaugeModule_(StapledMatrixModule_):
 
         return x, logJ
 
-    @ddp_wrapper
     def backward(self, x, log0=0):
         x_mu = x[:, self.mu]
 
@@ -224,7 +208,6 @@ class SVDGaugeModule_(StapledMatrixModule_):
 
         return x, logJ
 
-    @ddp_wrapper
     def _hack(self, x, log0=0):
         """Similar to the forward method, but returns intermediate parts."""
         x_mu = x[:, self.mu]
