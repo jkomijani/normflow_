@@ -369,18 +369,22 @@ class Fitter:
         logz_mean, logz_std = mydict['logz'][-1]
         # We now incorporate the effect of estimated log(z) to mean of log(q/p)
         adjusted_logqp_mean = logqp_mean + logz_mean
+        ess = mydict['ess'][-1]
+
         if epoch == 1:
-            print("Training progress:")
-            print("Epoch | loss | log(z) | log(q/p) with contribution from log(z)"
+            print(f"Training progress: ({ess.device})")
+            print("Device | Epoch | loss | log(z) | log(q/p)"
+                  + " with contribution from log(z)"
                   + "; mean & error from samples in a batch:"
                   )
-        str_ = "Epoch {0} | loss = {1} | log(z) = {2} | log(q/p) = {3}".format(
+        str_ = "({4}) Epoch {0} | loss = {1} | log(z) = {2} | log(q/p) = {3}".format(
                 epoch,
                 "%g" % loss,
                 fmt_val_err(logz_mean, logz_std, err_digits=2),
                 fmt_val_err(adjusted_logqp_mean, logqp_std, err_digits=2),
+                ess.device
                 )
-        str_ += f" | ess = {mydict['ess'][-1]:g}"
+        str_ += f" | ess = {ess:g}"
 
         if self.checkpoint_dict['print_extra_func'] is not None:
             str_ += self.checkpoint_dict['print_extra_func'](epoch)
