@@ -9,7 +9,7 @@ import warnings
 
 
 # =============================================================================
-class DDP(torch.nn.parallel.DistributedDataParallel):
+class _DDP(torch.nn.parallel.DistributedDataParallel):
     # After wrapping a Module with DistributedDataParallel, the attributes of
     # the module (e.g. custom methods) became inaccessible. To access them,
     # a workaround is to use a subclass of DistributedDataParallel as here.
@@ -62,7 +62,7 @@ class ModelDeviceHandler:
         self.nranks = nranks
         self.rank = rank
 
-    def makesuredistributed(self, rank):
+    def _makesuredistributed(self, rank):
         net_ = self._model.net_
 
         if isinstance(net_[0], torch.nn.parallel.DistributedDataParallel):
@@ -138,7 +138,8 @@ class DistributedFunc:
         model.device_handler.distributedto(rank, nranks=nranks,
                 seed_np=seed_np, seed_torch=seed_torch, master_port=master_port
                 )
-        model.device_handler.makesuredistributed(rank)
+
+        # model.device_handler.makesuredistributed(rank)  ## Do we want this!?
 
         # call function
         out = self.fn(model, *args, **kwargs)
