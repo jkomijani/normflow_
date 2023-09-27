@@ -13,10 +13,9 @@ class MatrixAction:
         S = beta / n  Tr f(M) \Gamma \\
         f(M) = Re \sum a_k M^k.
     """
-    def __init__(self, *, beta, staples_matrix=None, func=lambda x: torch.real(x)):
+    def __init__(self, *, beta, staples_matrix=None):
         # staples_matrix is the Gamma matrix above
         self.beta = beta
-        self.func = func
         self.staples_matrix = staples_matrix
 
     def reset_parameters(self, *, beta):
@@ -39,7 +38,7 @@ class MatrixAction:
         """Returns action density corresponding to input configurations."""
         if self.staples_matrix is not None:
             cfgs = cfgs @ self.staples_matrix
-        return -self.beta * calc_reduced_trace(self.func(cfgs))
+        return -self.beta * calc_reduced_trace(cfgs).real
 
     def log_prob(self, x, action_logz=0):
         """Returns log probability up to an additive constant."""
