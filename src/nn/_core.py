@@ -35,8 +35,7 @@ class Module_(torch.nn.Module):
 
     @property
     def npar(self):
-        count = lambda x: np.product(x)
-        return sum([count(p.shape) for p in self.parameters()])
+        return sum([np.product(p.shape) for p in self.parameters()])
 
     @staticmethod
     def _set_propagate_density(propagate_density):
@@ -142,8 +141,7 @@ class ModuleList_(torch.nn.ModuleList):
 
     @property
     def npar(self):
-        count = lambda x: np.product(x)
-        return sum([count(p.shape) for p in super().parameters()])
+        return sum([np.product(p.shape) for p in super().parameters()])
 
     def to(self, *args, **kwargs):
         for net_ in self:
@@ -196,8 +194,7 @@ class MultiChannelModule_(torch.nn.ModuleList):
 
     @property
     def npar(self):
-        count = lambda x: np.product(x)
-        return sum([count(p.shape) for p in super().parameters()])
+        return sum([np.product(p.shape) for p in super().parameters()])
 
 
 # =============================================================================
