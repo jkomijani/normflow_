@@ -16,9 +16,16 @@ class Module_(torch.nn.Module):
 
     # We are going to call sum_density with prefix clc, so you need to include
     # clc as the first argument.
-    sum_density = lambda clc, x: torch.sum(x, dim=list(range(1, x.dim())))
+    # sum_density = lambda clc, x: torch.sum(x, dim=list(range(1, x.dim())))
+    # sum_density is defined as regular method now
 
-    _propagate_density = False  # for test
+    _propagate_density = False
+
+    def sum_density(self, x):
+        if self._propagate_density:
+            return x
+        else:
+            return torch.sum(x, dim=list(range(1, x.dim())))
 
     def __init__(self, label=None):
         super().__init__()
@@ -39,15 +46,7 @@ class Module_(torch.nn.Module):
 
     @staticmethod
     def _set_propagate_density(propagate_density):
-        """Define a lambda function for (not) summing up a tensor over all axes
-        except the batch axis."""
-        if propagate_density:
-            func = lambda dummy, x: x
-        else:
-            func = lambda dummy, x: torch.sum(x, dim=list(range(1, x.dim())))
-        Module_.sum_density = func
-        # because sum_density is a method, the first input would be `clc`
-        # or any dummy variable
+        """This resets `_propagate_density` for the class."""
         Module_._propagate_density = propagate_density
 
 
