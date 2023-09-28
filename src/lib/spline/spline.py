@@ -459,8 +459,9 @@ class AugmentKnots:
         x, y, d, axis = self.knots_x, self.knots_y, self.knots_d, self.knots_axis
         n = x.shape[axis]
 
-        select_0 = lambda z: torch.index_select(z, axis, torch.tensor([0]))
-        select_1 = lambda z: torch.index_select(z, axis, torch.tensor([n-1]))
+        ind = torch.tensor([0, n-1], device=x.device)
+        select_0 = lambda z: torch.index_select(z, axis, ind[0])
+        select_1 = lambda z: torch.index_select(z, axis, ind[-1])
 
         if left == "linear":
             x_fiducial_left = select_0(x) - 1
