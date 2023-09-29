@@ -67,9 +67,16 @@ class FixedStaplesHandle:
 # =============================================================================
 class WilsonStaplesHandle(TemplateStaplesHandle):
 
+    vector_axis = 1  # The batch axis is 0
+
+    def makesure_correct_vector_axis(self, vector_axis):
+        assert self.vector_axis == vector_axis, "vector axis?"
+
     @classmethod
-    def calc_staples(cls, cfgs, *, mu, nu_list):
-        """Calculate and return the staples from the Wilson gauge action.
+    def calc_staples(cls, links, *, mu, nu_list):
+        """Calculate the staples (from the Wilson gauge action) corresponding
+        to the `links` that are in `mu` direction and summed over mu-nu planes
+        with nu in `nu_list`.
 
         Stables of the Wilson gauge action in any plane are shown in the
         following cartoon:
@@ -85,17 +92,17 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
 
         Parameters
         ----------
-        cfgs : tensor
-            Tensor of configurations.
+        links : tensor
+            Tensor of gauge links.
         mu : int
             Direction of the links with them the staples are associated.
         """
         return sum(
-            [cls.calc_planar_staples(cfgs, mu=mu, nu=nu) for nu in nu_list]
+            [cls.calc_planar_staples(links, mu=mu, nu=nu) for nu in nu_list]
             )
 
     @classmethod
-    def calc_planar_staples(cls, cfgs, *, mu, nu, up_only=False):
+    def calc_planar_staples(cls, links, *, mu, nu, up_only=False):
         """Similar to calc_staples, except that the staples are calculated on
         mu-nu plane.
         """
@@ -107,8 +114,14 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
         #   @ U @    +    @ U @
         #                f|   |d
         #                 --e--
-        x_mu = cfgs[:, mu]
-        x_nu = cfgs[:, nu]
+
+        if cls.vector_axis == 0:
+            x_mu = links[mu]
+            x_nu = links[nu]
+        else:
+            # then assume it is 1
+            x_mu = links[:, mu]
+            x_nu = links[:, nu]
 
         # U = x_mu  # we do not need U
         c = x_nu
