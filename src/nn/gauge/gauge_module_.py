@@ -10,8 +10,22 @@ methods handle the Jacobians of the transformation.
 
 import torch
 
+from .._core import ModuleList_
 from ..matrix.matrix_module_ import MatrixModule_
 from ..matrix.stapled_matrix_module_ import StapledMatrixModule_
+
+
+# =============================================================================
+class GaugeModuleList_(ModuleList_):
+
+    def forward(self, x, log0=0):
+        return super().forward(x.clone(), log0)
+
+    def backward(self, x, log0=0):
+        return super().backward(x.clone(), log0)
+
+    def hack(self, x, log0=0):
+        return super().hack(x.clone(), log0)
 
 
 # =============================================================================
