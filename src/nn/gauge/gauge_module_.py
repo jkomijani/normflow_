@@ -1,7 +1,6 @@
-# Copyright (c) 2021-2022 Javad Komijani
+# Copyright (c) 2021-2023 Javad Komijani
 
-"""This module contains new neural networks for transforming planar gauge
-fields.
+"""This module contains new neural networks for transforming gauge fields.
 
 The classes defined here are children of MatrixModule_ (and in turn Module_),
 and the trailing underscore implies that the associated forward and backward
