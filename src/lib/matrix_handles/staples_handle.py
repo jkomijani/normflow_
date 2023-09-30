@@ -102,7 +102,9 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
             )
 
     @classmethod
-    def calc_planar_staples(cls, links, *, mu, nu, up_only=False):
+    def calc_planar_staples(
+            cls, links, *, mu, nu, up_only=False, down_only=False
+            ):
         """Similar to calc_staples, except that the staples are calculated on
         mu-nu plane.
         """
@@ -134,6 +136,9 @@ class WilsonStaplesHandle(TemplateStaplesHandle):
         e = torch.roll(x_mu, +1, dims=1 + nu)
         f = torch.roll(c, +1, dims=1 + nu)
         d = torch.roll(a, +1, dims=1 + nu)
+
+        if down_only:
+            return cls.staple2_rule(d, e, f)
 
         return cls.staple1_rule(a, b, c) + cls.staple2_rule(d, e, f)
 
