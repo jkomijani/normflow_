@@ -16,12 +16,6 @@ class Module_(torch.nn.Module):
 
     propagate_density = False
 
-    def sum_density(self, x):
-        if self.propagate_density:
-            return x
-        else:
-            return torch.sum(x, dim=list(range(1, x.dim())))
-
     def __init__(self, label=None):
         super().__init__()
         self.label = label
@@ -39,10 +33,11 @@ class Module_(torch.nn.Module):
     def npar(self):
         return sum([np.product(p.shape) for p in self.parameters()])
 
-    @staticmethod
-    def _set_propagate_density(propagate_density):
-        """This resets `propagate_density` for the Module_ class."""
-        Module_.propagate_density = propagate_density
+    def sum_density(self, x):
+        if self.propagate_density:
+            return x
+        else:
+            return torch.sum(x, dim=list(range(1, x.dim())))
 
 
 # =============================================================================
@@ -128,10 +123,6 @@ class ModuleList_(torch.nn.ModuleList):
     def unfreeze_parameters(self):
         for param in self.parameters():
             param.requires_grad = True
-
-    @staticmethod
-    def _set_propagate_density(arg):
-        Module_._set_propagate_density(arg)
 
     @property
     def npar(self):
