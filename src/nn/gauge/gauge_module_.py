@@ -97,21 +97,27 @@ class GaugeModule_(MatrixModule_):
 
         return x, logJ
 
-    def _hack(self, x, log0=0):
+    def _hack(self, x, log0=0, forward=True):
         """Similar to the forward method, but returns intermediate parts."""
+
+        x = x.clone()
+
         x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
         stack = [(x_mu, staples)]
-        # below, sv stands for singular values (corres. to staples)
         slink, svd_ = self.staples_handle.staple(x_mu, staples=staples)
-        stack.append((slink,))
+        stack.append((slink, svd_))
 
-        slink_rotation, logJ = super().forward(slink, log0, reduce_=True)
-        stack.append(super()._hack(slink))
-        stack.append((slink_rotation, logJ))
+        if forward:
+            slink_rotation, logJ = super().forward(slink, log0, reduce_=True)
+        else:
+            slink_rotation, logJ = super().backward(slink, log0, reduce_=True)
+
+        stack.append(super()._hack(slink, forward=forward, reduce_=True))
+        stack.append((slink_rotation,))
 
         x_mu = self.staples_handle.push2link(
                 x_mu, slink_rotation=slink_rotation, svd_=svd_
@@ -119,6 +125,7 @@ class GaugeModule_(MatrixModule_):
         stack.append((x_mu,))
 
         x[:, self.mu] = x_mu
+        stack.append((x, logJ))
 
         return stack
 
