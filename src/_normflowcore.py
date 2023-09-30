@@ -394,12 +394,20 @@ class Fitter:
 
 # =============================================================================
 @torch.no_grad()
-def backward_sanitychecker(model, n_samples=5, return_details=False):
+def backward_sanitychecker(
+        model, n_samples=5, net_=None, return_details=False
+        ):
     """Performs a sanity check on the backward method of networks."""
+
+    if net_ is None:
+        net_ = model.net_
+
     x = model.prior.sample(n_samples)
-    y, logJ = model.net_(x)
-    x_hat, log0_hat = model.net_.backward(y, log0=logJ)
+    y, logJ = net_(x)
+    x_hat, log0_hat = net_.backward(y, log0=logJ)
+
     print("Sanity check is OK if following numbers are zero up to round off:")
     print([torch.sum(torch.abs(x - x_hat)), torch.sum(torch.abs(log0_hat))])
+
     if return_details:
         return (x, y, x_hat), (logJ, log0_hat)
