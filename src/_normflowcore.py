@@ -68,12 +68,6 @@ class Model:
     def transform(self, x):
         return self.net_(x)[0]
 
-    def _set_propagate_density(self, propagate_density):
-        """For tests...."""
-        self.net_._set_propagate_density(propagate_density)
-        self.prior._set_propagate_density(propagate_density)
-        self.action._set_propagate_density(propagate_density)
-
 
 class Posterior:
     """A class for drawing samples from given model. Note that the samples
