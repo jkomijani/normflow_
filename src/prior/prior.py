@@ -36,11 +36,6 @@ class Prior(ABC):
             return torch.sum(log_prob_density, dim=tuple(dim))
 
     @staticmethod
-    def _set_propagate_density(propagate_density):
-        """This resets `propagate_density` for the Prior class."""
-        Prior.propagate_density = propagate_density
-
-    @staticmethod
     def manual_seed(seed):
         if isinstance(seed, int):
             torch.manual_seed(seed)
