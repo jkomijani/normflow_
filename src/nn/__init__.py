@@ -6,11 +6,8 @@ from .scalar.modules_ import DistConvertor_, Identity_, Clone_
 from .scalar.modules_ import UnityDistConvertor_, PhaseDistConvertor_
 from .scalar.modules_ import MaskedWrapperNet_
 
-from .scalar.couplings_ import ShiftBlock_, AffineBlock_
-from .scalar.couplings_ import RQSplineBlock_, MultiRQSplineBlock_
-
-from .scalar.couplings_v2_ import ShiftCoupling_, AffineCoupling_
-from .scalar.couplings_v2_ import RQSplineCoupling_, MultiRQSplineCoupling_
+from .scalar.couplings_ import ShiftCoupling_, AffineCoupling_
+from .scalar.couplings_ import RQSplineCoupling_, MultiRQSplineCoupling_
 from .scalar.cntr_couplings_ import CntrShiftCoupling_, CntrAffineCoupling_
 from .scalar.cntr_couplings_ import CntrRQSplineCoupling_, CntrMultiRQSplineCoupling_
 

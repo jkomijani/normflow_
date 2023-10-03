@@ -13,7 +13,7 @@ the transformation.
 import torch
 import numpy as np
 
-from ..scalar.couplings_ import RQSplineBlock_, MultiRQSplineBlock_
+from ..scalar.couplings_deprecated_ import RQSplineBlock_, MultiRQSplineBlock_
 
 pi = np.pi
 

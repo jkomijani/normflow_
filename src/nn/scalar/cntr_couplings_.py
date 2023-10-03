@@ -8,9 +8,9 @@ backward methods handle the Jacobians of the transformation.
 """
 
 
-from .couplings_v2_ import Coupling_
-from .couplings_v2_ import ShiftCoupling_, AffineCoupling_
-from .couplings_v2_ import RQSplineCoupling_, MultiRQSplineCoupling_
+from .couplings_ import Coupling_
+from .couplings_ import ShiftCoupling_, AffineCoupling_
+from .couplings_ import RQSplineCoupling_, MultiRQSplineCoupling_
 
 
 # =============================================================================
