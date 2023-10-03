@@ -230,7 +230,7 @@ class SgnBiasNet_(Module_):
 
 
 class MaskedWrapperNet_(Module_):
-    """Can be used as a wrapper with maks to modify other networks.
+    """Can be used as a wrapper with a mask to modify other networks.
 
     For example:
 
