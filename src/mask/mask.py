@@ -120,21 +120,20 @@ class UnbindStackMask:
 
 class DoubleMask:
 
-    def __init__(self, *, mask0, mask1):
-        self.mask0 = mask0
-        self.mask1 = mask1
+    def __init__(self, *, passive_maker_mask, frozen_maker_mask):
+        self.passive_maker_mask = passive_maker_mask
+        self.frozen_maker_mask = frozen_maker_mask
 
     def split(self, x):
-        x_0, x_1 = self.mask0.split(x)
-        x_0, self.x_passive = self.mask1.split(x_0)
-        return x_0, x_1
+        x, self._x_passive = self.passive_maker_mask.split(x)
+        return self.frozen_maker_mask.split(x)
 
     def cat(self, x_0, x_1):
-        x_0 = self.mask1.cat(x_0, self.x_passive)
-        return self.mask0.cat(x_0, x_1)
+        x = self.frozen_maker_mask.cat(x_0, x_1)
+        return self.passive_maker_mask.cat(x, self._x_passive)
 
     def purify(self, x_chnl, channel, **kwargs):
-        return self.mask1.purify(
-                self.mask0.purify(x_chnl, channel, **kwargs),
-                channel, **kwargs
+        return self.passive_maker_mask.purify(
+                self.frozen_maker_mask.purify(x_chnl, channel, **kwargs),
+                0  # 1, which corresponds to self._x_passive is out of access
                 )
