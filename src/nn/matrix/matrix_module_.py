@@ -15,14 +15,22 @@ from .._core import Module_
 
 # =============================================================================
 class MatrixModule_(Module_):
+    """A module for transforming matrices.
 
-    def __init__(self, net_, *, matrix_handle, label="matrix_module_"):
-        """A wrapper to transform matrices using the given network `net_`
-        and the parametrization specified in `matrix_handle`.
-        For more information on how `matrix_handle` is used, see self._kernel.
-        """
+    Parameters
+    ----------
+    param_net_: instance of Module_ or ModuleList_
+        to change a set of parameters corresponding to the matrices links as
+        specfied in the upper class `MatrixModule_`.
+
+    matrix_handle: class instance
+        for parametrization of the matrices. For more information on how it is
+        used, see `self._kernel`.
+    """
+
+    def __init__(self, param_net_, *, matrix_handle, label="matrix_module_"):
         super().__init__(label=label)
-        self.net_ = net_
+        self.param_net_ = param_net_
         self.matrix_handle = matrix_handle
 
     def forward(self, x, log0=0, reduce_=False):
@@ -35,9 +43,9 @@ class MatrixModule_(Module_):
         """Return the transformed matrix and its Jacobian.
 
         To this end, `matrix_handle` is used for parametrizing the input
-        matrix. Then `net_` is used to transform the parameters. Finally,
-        `matrix_handle` is used to construct a new matrix from the transformed
-        parameters.
+        matrix. Then `param_net_` is used to transform the parameters.
+        Finally, `matrix_handle` is used to construct a new matrix from the
+        transformed parameters.
         """
         # 1. Parametrize the input matrix
         param, logJ_mat2par = self.matrix_handle.matrix2param_(matrix)
@@ -47,9 +55,9 @@ class MatrixModule_(Module_):
 
         # 3. Transform param
         if forward:
-            param, logJ_par2par = self.net_.forward(param)
+            param, logJ_par2par = self.param_net_.forward(param)
         else:
-            param, logJ_par2par = self.net_.backward(param)
+            param, logJ_par2par = self.param_net_.backward(param)
 
         # 4. Move back the channel axis to -1
         param = torch.movedim(param, 1, -1)  # return channel axis to -1
@@ -76,9 +84,9 @@ class MatrixModule_(Module_):
 
         # 3. Transform param
         if forward:
-            param, logJ_par2par = self.net_.forward(param)
+            param, logJ_par2par = self.param_net_.forward(param)
         else:
-            param, logJ_par2par = self.net_.backward(param)
+            param, logJ_par2par = self.param_net_.backward(param)
 
         # 4. Move back the channel axis to -1
         param = torch.movedim(param, 1, -1)  # return channel axis to -1
@@ -97,6 +105,6 @@ class MatrixModule_(Module_):
         return stack
 
     def transfer(self, **kwargs):
-        return self.__class__(self.net_.transfer(**kwargs),
+        return self.__class__(self.param_net_.transfer(**kwargs),
                               matrix_handle=self.matrix_handle, label=self.label
                              )
