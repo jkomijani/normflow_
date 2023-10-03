@@ -69,7 +69,7 @@ class SU3RQSplineCoupling_(MultiRQSplineCoupling_):
     r"""
     Special case of `RQSplineCoupling_` with following assumptions:
 
-    boundaries : list[str]
+    preprocess_fz_boundaries : list[str]
         Possible values are ['none', 'none'], ['none', 'periodic']
         and ['periodic', 'periodic'].
         defines the boundary condition of the two input parameters.
@@ -82,19 +82,17 @@ class SU3RQSplineCoupling_(MultiRQSplineCoupling_):
     def __init__(self, nets,
             xlims=[(0, 1), (-pi, pi)],
             ylims=[(0, 1), (-pi, pi)],
-            boundaries=['none', 'periodic'], **kwargs
+            preprocess_fz_boundaries=['none', 'periodic'], **kwargs
             ):
 
         super().__init__(nets, xlims=xlims, ylims=ylims, **kwargs)
-        self.xlims = xlims
-        self.ylims = ylims
-        self.boundaries = boundaries
+        self.preprocess_fz_boundaries = preprocess_fz_boundaries
 
     def preprocess_fz(self, x):  # fz: frozen
         # split x into two parts, one for each independent parameter of the
         # eigenvectors of the SU(3) matrix
         # further split each part into cos and sin if boundary == 'periodic'
-        bound0, bound1 = self.boundaries
+        bound0, bound1 = self.preprocess_fz_boundaries
         if bound0 == 'none' and bound1 == 'none':
             pass
         elif bound0 == 'none' and bound1 == 'periodic':
