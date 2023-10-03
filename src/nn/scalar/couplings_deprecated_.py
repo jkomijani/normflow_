@@ -1,88 +1,97 @@
-# Copyright (c) 2021-2023 Javad Komijani
+# Copyright (c) 2021-2022 Javad Komijani
 
-"""
-This module contains new neural networks that are subclasses of Module_ and
-couple sites to each other.
+"""This module contains new neural networks that
+1. are children of Module_,
+2. couple sites to each other.
 
-As in Module_, the trailing underscore implies that the associated forward and
-backward methods handle the Jacobians of the transformation.
+Note that as in Module_ itself, the trailing underscore implies that
+the associated forward and backward methods handle the Jacobians of
+the transformation.
 """
 
 
 import torch
 import numpy as np
 
-from abc import abstractmethod, ABC
-
 from .._core import Module_
 from ...lib.spline import RQSpline
 
+pi = np.pi
 
-# =============================================================================
-class Coupling_(Module_, ABC):
-    """A base class for a list of invertible transformations using a mask-based
-    approach to divide the input into two partitions that are coupled in a
-    specific way that makes it easy to calculate the Jacobian of the
+
+class CouplingBlock_(Module_):
+    """A template class for a block of invertible transformations using a
+    mask-based approach to divide the input into two partitions that are coupled
+    in a specif way that makes it easy to calculate the Jacobian of the
     transformation.
 
-    The list of invertible transformations is basically a list of coupling
-    layers alternatively acting over each partition; each layer is specifiend
-    by a NN in the input `nets` list.
+    The block conains two layers and takes as input two NNs. The first (second)
+    NN is used in the first (second) layer to transform the first (second)
+    partition, while the second (first) patition is kept fixed.
+
+    Three examples of children classes are ShiftBlock_, AffineBlock_, and
+    RQSplineBlock_.
 
     Parameters
     ----------
-    nets : a list of instance of torch.nn
-         The output of each element of nets must have enought output channels
-         for corresponding subclasses.
+    net0 : an instance of torch.nn
+         The output of net0 must have two output channels for ShiftBlock_ and
+         AffineBlock_ and enough channels for RQSplineBlock_.
 
-    mask : a tensor of 0s and 1s
+    net1 : an instance of torch.nn
+         Similar to net0 but for the second layer of the block.
+
+    mask : a tensor one 0s and 1s
          For partitioning the input.
 
-    channels_axis : int, optional
-        The channel axis in the outputs of nets (default is 1).
+    channels_axis : int, default 1
+        The channel axis in the outputs of net0 and net1.
+
+    zee2sym : bool
+        If True explicitely implements the Z_2 symmetery.
 
     label : str
         Can be used for unique labeling of NNs.
     """
 
-    def __init__(self, nets, *, mask, channels_axis=1, label='coupling_'):
+    def __init__(self, net0, net1, *, mask,
+            zee2sym=False, channels_axis=1, label='coupling_'
+            ):
         super().__init__(label=label)
-        self.nets = torch.nn.ModuleList(nets)
+        self.net0, self.net1 = net0, net1
         self.mask = mask
+        self.zee2sym = zee2sym
         self.channels_axis = channels_axis
 
+    # @torch.cuda.amp.autocast()
     def forward(self, x, log0=0):
-        x = list(self.mask.split(x))  # x = [x_0, x_1]
-        for k, net in enumerate(self.nets):
-            parity = k % 2
-            x[parity], log0 = self.atomic_forward(
-                                                  x_active=x[parity],
-                                                  x_frozen=x[1 - parity],
-                                                  parity=parity,
-                                                  net=net,
-                                                  log0=log0
-                                                  )
-        return self.mask.cat(*x), log0
+        x_0, x_1 = self.mask.split(x)
+        if self.net0 is not None:
+            x_0, log0 = self.half_forward(self.net0,
+                            x_active=x_0, x_frozen=x_1, which_half=0, log0=log0
+                            )
+        if self.net1 is not None:
+            x_1, log0 = self.half_forward(self.net1,
+                            x_active=x_1, x_frozen=x_0, which_half=1, log0=log0
+                            )
+        return self.mask.cat(x_0, x_1), log0
 
     def backward(self, x, log0=0):
-        x = list(self.mask.split(x))  # x = [x_0, x_1]
-        for k in list(range(len(self.nets)))[::-1]:
-            parity = k % 2
-            x[parity], log0 = self.atomic_backward(
-                                                  x_active=x[parity],
-                                                  x_frozen=x[1 - parity],
-                                                  parity=parity,
-                                                  net=self.nets[k],
-                                                  log0=log0
-                                                  )
-        return self.mask.cat(*x), log0
+        x_0, x_1 = self.mask.split(x)
+        if self.net1 is not None:
+            x_1, log0 = self.half_backward(self.net1,
+                            x_active=x_1, x_frozen=x_0, which_half=1, log0=log0
+                            )
+        if self.net0 is not None:
+            x_0, log0 = self.half_backward(self.net0,
+                            x_active=x_0, x_frozen=x_1, which_half=0, log0=log0
+                            )
+        return self.mask.cat(x_0, x_1), log0
 
-    @abstractmethod
-    def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
         pass
 
-    @abstractmethod
-    def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_backward(self, net, *, x_active, x_frozen, which_half, log0=0):
         pass
 
     def preprocess_fz(self, x):  # fz: frozen
@@ -96,72 +105,69 @@ class Coupling_(Module_, ABC):
 
     def transfer(self, scale_factor=1, mask=None, **extra):
         return self.__class__(
-                [net.transfer(scale_factor=scale_factor) for net in self.nets],
+                self.net0.transfer(scale_factor=scale_factor),
+                self.net1.transfer(scale_factor=scale_factor),
                 mask=self.mask if mask is None else mask,
                 label=self.label,
+                zee2sym=self.zee2sym,
                 channels_axis=self.channels_axis
                 )
 
 
-# =============================================================================
-class ShiftCoupling_(Coupling_):
-    """A Coupling_ with shift transformations."""
+class ShiftBlock_(CouplingBlock_):
+    """A coupling block with a shift transformation."""
 
-    def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
         t = self.postprocess(net(self.preprocess_fz(x_frozen)))
-        return self.mask.purify(x_active + t, channel=parity), log0
+        return self.mask.purify(x_active + t, channel=which_half), log0
 
-    def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_backward(self, net, *, x_active, x_frozen, which_half, log0=0):
         t = self.postprocess(net(self.preprocess_fz(x_frozen)))
-        return self.mask.purify(x_active - t, channel=parity), log0
+        return self.mask.purify(x_active - t, channel=which_half), log0
 
 
-# =============================================================================
-class AffineCoupling_(Coupling_):
-    """A Coupling_ with affine transformations."""
+class AffineBlock_(CouplingBlock_):
+    """A coupling block with an affine transformation."""
 
-    def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         t, s = out.split((1, 1), dim=self.channels_axis)
         # purify: get rid of unwanted contributions to x_frozen
-        t = self.mask.purify(self.postprocess(t), channel=parity)
-        s = self.mask.purify(self.postprocess(s), channel=parity)
-        s = torch.abs(s)  # then exp(-s) is never larger than 1
+        t = self.mask.purify(self.postprocess(t), channel=which_half)
+        s = self.mask.purify(self.postprocess(s), channel=which_half)
+        if self.zee2sym:
+            s = torch.abs(s)
         return t + x_active * torch.exp(-s), log0 - self.sum_density(s)
 
-    def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_backward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         t, s = out.split((1, 1), dim=self.channels_axis)
         # purify: get rid of unwanted contributions to x_frozen
-        t = self.mask.purify(self.postprocess(t), channel=parity)
-        s = self.mask.purify(self.postprocess(s), channel=parity)
-        s = torch.abs(s)
+        t = self.mask.purify(self.postprocess(t), channel=which_half)
+        s = self.mask.purify(self.postprocess(s), channel=which_half)
+        if self.zee2sym:
+            s = torch.abs(s)
         return (x_active - t) * torch.exp(s), log0 + self.sum_density(s)
 
 
-# =============================================================================
-class RQSplineCoupling_(Coupling_):
-    """A Coupling_ with rational quadratic spline transformations.
+class RQSplineBlock_(CouplingBlock_):
+    """A coupling block with a rational quadratic spline transformation."""
 
-    In addition to the arguments and option of Coupling_, there are specific
-    options for RQSplineCoupling_:
-
-    >>> xlim, ylim, knots_x, knots_y, extrap
-
-    For more details on using these options see RQSpline.
-
-    A quick tip on extrapolation: e.g., for linear extrapolation on right and
-    anti-periodic boundary on left use:
-
-    >>> extrap = {'left': 'anti', 'right': 'linear'}
-    """
-
-    def __init__(self, nets, *, mask,
+    def __init__(self, net0, net1, *, mask,
             xlim=(0, 1), ylim=(0, 1), knots_x=None, knots_y=None, extrap={},
-            **kwargs
+            channels_axis=1, label='spline_coupling_'
             ):
+        """
+        Tips on extrapolation:
+        1.  for linear extrapolation on both sides set
+            `extrap=dict(left='linear', right='linear')`
+        2.  for linear extrapolation on right and anti-periodic boundary on left
+            set `extrap={'left': 'anti', 'right': 'linear'}`.
+        """
 
-        super().__init__(nets, mask=mask, **kwargs)
+        super().__init__(net0, net1,
+                mask=mask, channels_axis=channels_axis, label=label
+                )
 
         self.xlim, self.xwidth = xlim, xlim[1] - xlim[0]
         self.ylim, self.ywidth = ylim, ylim[1] - ylim[0]
@@ -175,7 +181,7 @@ class RQSplineCoupling_(Coupling_):
         # returns 1. With this setting it would be easy to set the derivatives
         # to 1 (with zero inputs).
 
-    def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
@@ -183,11 +189,11 @@ class RQSplineCoupling_(Coupling_):
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
         # the above two lines are equivalent to the following for default cases
         # fx_active, g = spline(x_active, grad=True, squeezed=True)
-        fx_active = self.mask.purify(fx_active, channel=parity)
-        logg = self.mask.purify(torch.log(g), channel=parity)
-        return fx_active, log0 + self.sum_density(logg)
+        fx_active = self.mask.purify(fx_active, channel=which_half)
+        g = self.mask.purify(g, channel=which_half, zero2one=True)
+        return fx_active, log0 + self.sum_density(torch.log(g))
 
-    def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_backward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
@@ -195,18 +201,19 @@ class RQSplineCoupling_(Coupling_):
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
         # the above two lines are equivalent to the following for default cases
         # fx_active, g = spline.backward(x_active, grad=True, squeezed=True)
-        fx_active = self.mask.purify(fx_active, channel=parity)
-        logg = self.mask.purify(torch.log(g), channel=parity)
-        return fx_active, log0 + self.sum_density(logg)
+        fx_active = self.mask.purify(fx_active, channel=which_half)
+        g = self.mask.purify(g, channel=which_half, zero2one=True)
+        return fx_active, log0 + self.sum_density(torch.log(g))
 
-    def _hack(self, *, x_active, x_frozen, parity, net):
+    def _hack(self, x, which_half=0):
+        x_0, x_1 = self.mask.split(x)
+        if which_half == 0:
+            net, x_active, x_frozen = self.net0, x_0, x_1
+        else:
+            net, x_active, x_frozen = self.net1, x_1, x_0
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
-        fx_active, g = spline(self.preprocess(x_active), grad=True)
-        fx_active, g = self.postprocess(fx_active), self.postprocess(g)
-        fx_active = self.mask.purify(fx_active, channel=parity)
-        logg = self.mask.purify(torch.log(g), channel=parity)
-        return spline, fx_active, logg
+        return spline, x_active
 
     def make_spline(self, out):
         # `out` is the output of net(in)
@@ -263,9 +270,11 @@ class RQSplineCoupling_(Coupling_):
 
     def transfer(self, scale_factor=1, mask=None, **extra):
         return self.__class__(
-                [net.transfer(scale_factor=scale_factor) for net in self.nets],
+                self.net0.transfer(scale_factor=scale_factor),
+                self.net1.transfer(scale_factor=scale_factor),
                 mask=self.mask if mask is None else mask,
                 label=self.label,
+                zee2sym=self.zee2sym,
                 channels_axis=self.channels_axis,
                 xlim=self.xlim,
                 ylim=self.ylim,
@@ -275,27 +284,28 @@ class RQSplineCoupling_(Coupling_):
                 )
 
 
-# =============================================================================
-class MultiRQSplineCoupling_(Coupling_):
-    """A Coupling_ with multi rational quadratic spline transformations,
-    each actiong on an additional channel of the input data.
-
-    In addition to the arguments and option of Coupling_, there are specific
-    options for MultiRQSplineCoupling_, which are very similar to those of
-    RQSplineCoupling_, except that, e.g., instead of `xlim` here we have
-    `xlims`, which is a list. By default the list have two elements, indicating
-    there are two rational quadratic splines.
-
-    For more details on using these options see RQSplineCoupling_ and RQSpline.
+class MultiRQSplineBlock_(CouplingBlock_):
+    """
+    a coupling block with two rational quadratic spline transformations,
+    transforming two different parameters.
     """
 
-    def __init__(self, nets, *, mask,
+    def __init__(self, net0, net1, *, mask,
             xlims=[(0, 1), (0, 1)], ylims=[(0, 1), (0, 1)],
-            knots_x=[None, None], knots_y=[None, None], extraps=[{}, {}],
-            **kwargs
+            knots_x=[None, None], knots_y=[None, None],
+            extraps=[{}, {}], channels_axis=1, label='double_spline_coupling_'
             ):
+        """
+        Tips on extrapolation:
+        1.  for linear extrapolation on both sides set
+            `extrap=dict(left='linear', right='linear')`
+        2.  for linear extrapolation on right and anti-periodic boundary on left
+            set `extrap={'left': 'anti', 'right': 'linear'}`.
+        """
 
-        super().__init__(nets, mask=mask, **kwargs)
+        super().__init__(net0, net1,
+                mask=mask, channels_axis=channels_axis, label=label
+                )
 
         self.num_splines = len(xlims)
         self.xlims = xlims
@@ -312,32 +322,28 @@ class MultiRQSplineCoupling_(Coupling_):
         # returns 1. With this setting it would be easy to set the derivatives
         # to 1 (with zero inputs).
 
-    def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_forward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
         fx_active, g = self.apply_spline(self.preprocess(x_active), spline)
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
-        fx_active = self.mask.purify(fx_active, channel=parity)
-        logg = self.mask.purify(torch.log(g), channel=parity)
-        return fx_active, log0 + self.sum_density(logg)
+        fx_active = self.mask.purify(fx_active, channel=which_half)
+        g = self.mask.purify(g, channel=which_half, zero2one=True)
+        return fx_active, log0 + self.sum_density(torch.log(g))
 
-    def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
+    def half_backward(self, net, *, x_active, x_frozen, which_half, log0=0):
         out = net(self.preprocess_fz(x_frozen))
         spline = self.make_spline(out)
         # below g is the gradient of spline @ x_active
-        fx_active, g = self.apply_spline(
-                self.preprocess(x_active), spline, backward=True
-                )
+        fx_active, g = self.apply_spline(self.preprocess(x_active), spline, backward=True)
         fx_active, g = self.postprocess(fx_active), self.postprocess(g)
-        fx_active = self.mask.purify(fx_active, channel=parity)
-        logg = self.mask.purify(torch.log(g), channel=parity)
-        return fx_active, log0 + self.sum_density(logg)
+        fx_active = self.mask.purify(fx_active, channel=which_half)
+        g = self.mask.purify(g, channel=which_half, zero2one=True)
+        return fx_active, log0 + self.sum_density(torch.log(g))
 
     def preprocess(self, x):
-        xs = torch.tensor_split(
-                x, sections=self.num_splines, dim=self.channels_axis
-                )
+        xs = torch.tensor_split(x, sections=self.num_splines, dim=self.channels_axis)
         return xs
 
     def postprocess(self, xs):
@@ -346,10 +352,8 @@ class MultiRQSplineCoupling_(Coupling_):
         return x
 
     def make_spline(self, out):
-        """
-        Splits the out in self.channel_axis into `self.nun_splines` equal parts
-        and makes the same number of splines, one for each additional channel
-        of the input.
+        """splits the out in self.channel_axis into two equal parts and makes two splines,
+        one for each independent parameter of the eigenvectors of the SU(3) matrix.
         """
         out_splits = torch.tensor_split(
                 out, sections=self.num_splines, dim=self.channels_axis
@@ -367,18 +371,17 @@ class MultiRQSplineCoupling_(Coupling_):
 
         splines = []
         for i, out in enumerate(out_splits):
-            """
-            Construct a spline with number of knots deduced from input `out`.
-            The first knot is always at `(xlim[0], ylim[0])` and the last knot
-            is always at `(xlim[1], ylim[1])`; hence, the number of channels in
-            the input `out` should always be `3 m - 2` unless one fixes knots_x
-            or knots_y. Here, `m` is the number of knots in the spline.
+            """construct a spline with number of knots deduced from input `out`.
+            The first knot is always at `(xlim[0], ylim[0])` and the last knot is
+            always at `(xlim[1], ylim[1])`; hence, the number of channels in the
+            input `out` should always be `3 m - 2` unless one fixes knots_x or
+            knots_y. Here, `m` is the number of knots in the spline.
 
-            To clarify more, the input `out` gets split into (m-1, m-1, m)
-            parts corresponding to knots_x, knots_y, and knots_d.
-            When either knots_x or knots_y is already fixed, the input `out`
-            gets split into (m-1, m) parts and if both are fixed ther will be
-            no partitioning.
+            To clarify more, the input `out` gets split into (m-1, m-1, m) parts
+            corresponding to knots_x, knots_y, and knots_d.
+            When either knots_x or knots_y is already fixed, the input `out` gets
+            split into (m-1, m) parts and if both are fixed ther will be no
+            partitioning.
             """
             knots_x, knots_y = self.knots_x[i], self.knots_y[i]
             xwidth, ywidth = self.xwidths[i], self.ywidths[i]
@@ -424,9 +427,11 @@ class MultiRQSplineCoupling_(Coupling_):
 
     def transfer(self, scale_factor=1, mask=None, **extra):
         return self.__class__(
-                [net.transfer(scale_factor=scale_factor) for net in self.nets],
+                self.net0.transfer(scale_factor=scale_factor),
+                self.net1.transfer(scale_factor=scale_factor),
                 mask=self.mask if mask is None else mask,
                 label=self.label,
+                zee2sym=self.zee2sym,
                 channels_axis=self.channels_axis,
                 xlim=self.xlims,
                 ylim=self.ylims,
