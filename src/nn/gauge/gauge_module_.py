@@ -33,10 +33,9 @@ class GaugeModule_(MatrixModule_):
     """
     Parameters
     ----------
-    net_: instance of Module_ or ModuleList_
-        a net_ that takes as inputs a list that includes the svd-stapled-links
-        that are going to be changed (the active ones) and the singular values
-        of the corresponding staples.
+    param_net_: instance of Module_ or ModuleList_
+        a core network to change a set of parameters corresponding to the
+        staples links as specfied in the supper class `MatrixModule_`.
 
     mu : int
         specifies the direction of links that are going to be changed
@@ -45,16 +44,15 @@ class GaugeModule_(MatrixModule_):
         (in combination w/ mu) specifies the plane of staples to be calculated
     
     staple_handle: class instance
-         A class instance to handle matrices as expected in `self._kernel`
+         to calculate staples and use them.
 
     matrix_handle: class instance
-         A class instance to handle matrices as expected in `self._kernel`
+         to handle matrices as expected in the supper class `MatrixModule_`.
     """
-
-    def __init__(self, net_,
+    def __init__(self, param_net_,
             *, mu, nu_list, staples_handle, matrix_handle, label="gauge_"
             ):
-        super().__init__(net_, matrix_handle=matrix_handle)
+        super().__init__(param_net_, matrix_handle=matrix_handle)
         self.mu = mu
         self.nu_list = nu_list
         self.staples_handle = staples_handle
@@ -131,7 +129,7 @@ class GaugeModule_(MatrixModule_):
 
     def transfer(self, **kwargs):
         return self.__class__(
-                self.net_.transfer(**kwargs),
+                self.param_net_.transfer(**kwargs),
                 mu=self.mu,
                 nu_list=self.nu_list,
                 staples_handle=self.staples_handle,
