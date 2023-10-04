@@ -21,4 +21,4 @@ from .matrix.stapled_matrix_module_ import StapledMatrixModule_
 from .gauge.planar_gauge_module_ import PlanarGaugeModule_, PlanarGaugeModuleList_
 
 from .gauge.gauge_module_ import GaugeModule_, GaugeModuleList_
-from .gauge.gauge_params_couplings_ import U1RQSplineCoupling_, SU2RQSplineCoupling_, SU3RQSplineCoupling_
+from .gauge.gauge_param_spline_couplings_ import U1RQSplineCoupling_, SU2RQSplineCoupling_, SU3RQSplineCoupling_
