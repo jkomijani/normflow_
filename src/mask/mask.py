@@ -74,17 +74,24 @@ class AlongAxesEvenOddMask(Mask):
 
 class DummyMask:
 
-    @staticmethod
-    def split(x):
-        return x, None
+    def __init__(self, parity=0):
+        self.parity = parity
+
+    def split(self, x):
+        if self.parity == 0:
+            return x, None
+        else:
+            return None, x
+
+    def cat(self, x_0, x_1):
+        if self.parity == 0:
+            return x_0
+        else:
+            return x_1
 
     @staticmethod
-    def cat(x, dummy):
-        return x
-
-    @staticmethod
-    def purify(x, *args, **kwargs):
-        return x
+    def purify(x_chnl, *args, **kwargs):
+        return x_chnl
 
 
 class ListSplitMask:
@@ -116,24 +123,3 @@ class UnbindStackMask:
     @staticmethod
     def purify(x_chnl, *args, **kwargs):
         return x_chnl
-
-
-class DoubleMask:
-
-    def __init__(self, *, passive_maker_mask, frozen_maker_mask):
-        self.passive_maker_mask = passive_maker_mask
-        self.frozen_maker_mask = frozen_maker_mask
-
-    def split(self, x):
-        x, self._x_passive = self.passive_maker_mask.split(x)
-        return self.frozen_maker_mask.split(x)
-
-    def cat(self, x_0, x_1):
-        x = self.frozen_maker_mask.cat(x_0, x_1)
-        return self.passive_maker_mask.cat(x, self._x_passive)
-
-    def purify(self, x_chnl, channel, **kwargs):
-        return self.passive_maker_mask.purify(
-                self.frozen_maker_mask.purify(x_chnl, channel, **kwargs),
-                0  # 1, which corresponds to self._x_passive is out of access
-                )
