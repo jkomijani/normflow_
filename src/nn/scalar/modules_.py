@@ -227,32 +227,3 @@ class SgnBiasNet_(Module_):
 
     def backward(self, x, log0=0):
         return x - torch.sgn(x) * self.w**2, log0
-
-
-class MaskedWrapperNet_(Module_):
-    """Can be used as a wrapper with a mask to modify other networks.
-
-    For example:
-
-    >>> MaskedWrapperNet_(UnityDistConvertor_(4), maks=Mask(shape))
-    """
-
-    def __init__(self, net_, *, mask):
-        super().__init__(label=f'wrapper{net_.label}')
-        self.net_ = net_
-        self.mask = mask
-        self.net_.propagate_density = True  # does not sum the density
-
-    def forward(self, x, log0=0):
-        x_active, x_frozen = self.mask.split(x)
-        x_active, logJ_density = self.net_.forward(x_active)
-        x_active = self.mask.purify(x_active, channel=0)
-        logJ = self.sum_density(self.mask.purify(logJ_density, channel=0))
-        return self.mask.cat(x_active, x_frozen), log0 + logJ
-
-    def backward(self, x, log0=0):
-        x_active, x_frozen = self.mask.split(x)
-        x_active, logJ_density = self.net_.backward(x_active)
-        x_active = self.mask.purify(x_active, channel=0)
-        logJ = self.sum_density(self.mask.purify(logJ_density, channel=0))
-        return self.mask.cat(x_active, x_frozen), log0 + logJ

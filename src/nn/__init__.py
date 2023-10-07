@@ -1,10 +1,10 @@
 from ._core import Module_, ModuleList_
 from ._core import MultiChannelModule_, MultiOutChannelModule_
+from ._core import MaskWrapperModule_
 
 from .scalar.modules import ConvAct, LinearAct
 from .scalar.modules_ import DistConvertor_, Identity_, Clone_
 from .scalar.modules_ import UnityDistConvertor_, PhaseDistConvertor_
-from .scalar.modules_ import MaskedWrapperNet_
 
 from .scalar.couplings_ import ShiftCoupling_, AffineCoupling_
 from .scalar.couplings_ import RQSplineCoupling_, MultiRQSplineCoupling_
