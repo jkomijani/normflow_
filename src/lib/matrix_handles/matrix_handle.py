@@ -155,12 +155,12 @@ class SU2MatrixParametrizer(UnMatrixParametrizer):
     @staticmethod
     def sortedphase2param_(sorted_phase):
         """param changes between 0 and 1."""
-        logJ = 0  # logJ = -np.log(pi) but suppress the additive constant
+        logJ = 0  # logJ = -np.log(pi) x N, but suppress the additive constant
         return sorted_phase[..., 1:] / pi, logJ
 
     @staticmethod
     def param2sortedphase_(param):
-        logJ = 0  # logJ = np.log(pi) but suppress the additive constant
+        logJ = 0  # logJ = np.log(pi) x N, but suppress the additive constant
         return torch.cat((-param * pi, param * pi), dim=-1), logJ
 
 
@@ -182,29 +182,33 @@ class SU3MatrixParametrizer(UnMatrixParametrizer):
         r"""Return :math:`(w, r)` as defined below
 
         .. math::
-            w = \theta \cos (\phi) / \pi \in [0, 1] \\
-            r = \tan (\phi) \sqrt{3} \pi \in [-\pi, \pi]
+
+            w = \theta \cos (\phi) / \pi  \in [0, 1] \\
+            r = (1 + \tan (\phi) \sqrt{3}) / 2  \in [0, 1]
+
+        Note that :math:`r = \sin(\phi + \pi/6) / \cos(\phi)`
 
         To convert w to \theta one can simply multiply it with
-        :math:`\sqrt{1 + r^2 / (3 * \pi^2)}`.
+        :math:`\sqrt{1 + 4/3 (r - 1/2)^2}`.
         """
         x, y, z = sorted_phase.split((1, 1, 1), dim=-1)  # x <= y <= z
         w = (z - x) / (2 * pi)  # w \in [0, 1]
-        r = (y / w) * (3/2)  # r \in [-pi, pi]
-        r[w == 0] = 0
-        # w *= torch.sqrt(1 + r**2 / (3 * pi**2)) * (3**0.5 / 2)
-        c = np.log(2/3 * pi)
-        return torch.cat((w, r), dim=-1), -sum_density(torch.log(w) + c)
+        w[w == 0] = 1e-16
+        r = (y / w) * (3/4/pi) + 1/2  # r \in [0, 1]
+        logJ = -sum_density(torch.log(w))
+        # c = np.log(8/3 * pi**2), additive constant to log(w), but we drop it
+        return torch.cat((w, r), dim=-1), logJ
 
     @staticmethod
     def param2sortedphase_(param):
         """Inverse of sortedphase2param_()"""
         w, r = param.split(1, dim=-1)
-        y = w * r / (3/2)
-        z = w * pi  - y/2
-        x = -w * pi - y/2
-        c = np.log(2/3 * pi)
-        return torch.cat((x, y, z), dim=-1), sum_density(torch.log(w) + c)
+        y = w * (r - 1/2) / (3/4/pi)
+        z = -y / 2 + w * pi
+        x = -y / 2 - w * pi
+        logJ = sum_density(torch.log(w))
+        # c = np.log(8/3 * pi**2), additive constant to log(w), but we drop it
+        return torch.cat((x, y, z), dim=-1), logJ
 
 
 # =============================================================================
