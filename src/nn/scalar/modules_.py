@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Javad Komijani
+# Copyright (c) 2021-2023 Javad Komijani
 
 """
 This module contains new neural networks that are subclasses of Module_ and
@@ -135,13 +135,21 @@ class SplineNet_(SplineNet, Module_):
         return fx, log0 + logJ
 
 
-UnityDistConvertor_ = SplineNet_  # for PDF convertor, with variable in [0, 1].
+class UnityDistConvertor_(SplineNet_):
+    """As a PDF convertor, with variable in [0, 1]."""
+
+    def __init__(self, knots_len, symmetric=False, **kwargs):
+
+        if symmetric:
+            extra = dict(xlim=(0.5, 1), ylim=(0.5, 1), extrap={'left':'anti'})
+        else:
+            extra = {}
+
+        super().__init__(knots_len, **kwargs, **extra)
 
 
 class PhaseDistConvertor_(SplineNet_):
-    """A phase probability distribution convertor, suitable for variables
-    with nonzero probability in [-pi, pi].
-    """
+    """As a PDF convertor, with variable in [-pi, pi]."""
 
     def __init__(self, knots_len, symmetric=False, label='phase-dc_', **kwargs):
 
@@ -156,8 +164,7 @@ class PhaseDistConvertor_(SplineNet_):
 
 
 class DistConvertor_(ModuleList_):
-    """A probability distribution convertor, suitable for variables potentially
-    spread to plus/minus infinities.
+    """As a PDF convertor, with variable in [-\infty, \infty].
 
     Steps: pass through Expit_, SplineNet_, and Logit_
     """
