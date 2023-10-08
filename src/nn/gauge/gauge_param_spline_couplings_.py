@@ -80,9 +80,9 @@ class SU3RQSplineCoupling_(MultiRQSplineCoupling_):
     """
 
     def __init__(self, nets,
-            xlims=[(0, 1), (-pi, pi)],
-            ylims=[(0, 1), (-pi, pi)],
-            preprocess_fz_boundaries=['none', 'periodic'], **kwargs
+            xlims=[(0, 1), (0, 1)],
+            ylims=[(0, 1), (0, 1)],
+            preprocess_fz_boundaries=['none', 'none'], **kwargs
             ):
 
         super().__init__(nets, xlims=xlims, ylims=ylims, **kwargs)
