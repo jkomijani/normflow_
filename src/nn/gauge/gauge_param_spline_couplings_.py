@@ -11,24 +11,11 @@ import numpy as np
 
 from ..scalar.couplings_ import RQSplineCoupling_, MultiRQSplineCoupling_
 
-pi = np.pi
-
 
 class SU2RQSplineCoupling_(RQSplineCoupling_):
+    """Special case of `RQSplineCoupling_` but assuming the input  has already
+    a channel axis.
     """
-    Special case of `RQSplineCoupling_` with following assumptions:
-
-    1.  The input `x` is a phase between [0, 1],
-        and the output will be in the same range.
-
-    2.  The input `x` already has a channel axis,
-        but we need to include cos and sin of the input.
-    """
-
-    def __init__(self, nets, xlim=(0, 1), ylim=(0, 1), **kwargs):
-
-        super().__init__(nets, xlim=xlim, ylim=ylim, **kwargs)
-
     def preprocess_fz(self, x):  # fz: frozen
         return x
 
@@ -40,22 +27,12 @@ class SU2RQSplineCoupling_(RQSplineCoupling_):
 
 
 class U1RQSplineCoupling_(RQSplineCoupling_):
+    """Special case of `RQSplineCoupling_` but assuming the input  has already
+    a channel axis, and we also include cos and sin of the input (times 2 *pi)
     """
-    Special case of `RQSplineCoupling_` with following assumptions:
-
-    1.  The input `x` is a phase between (-pi, pi],
-        and the output will be in the same range.
-
-    2.  The input `x` already has a channel axis,
-        but we need to include cos and sin of the input.
-    """
-
-    def __init__(self, nets, xlim=(-pi, pi), ylim=(-pi, pi), **kwargs):
-
-        super().__init__(nets, xlim=xlim, ylim=ylim, **kwargs)
 
     def preprocess_fz(self, x):  # fz: frozen
-        # return x  # torch.cos(x)
+        x = x * (2*np.pi)
         return torch.cat((torch.cos(x), torch.sin(x)), dim=self.channels_axis)
 
     def preprocess(self, x):
