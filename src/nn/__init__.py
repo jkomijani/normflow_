@@ -22,3 +22,5 @@ from .gauge.planar_gauge_module_ import PlanarGaugeModule_, PlanarGaugeModuleLis
 
 from .gauge.gauge_module_ import GaugeModule_, GaugeModuleList_
 from .gauge.gauge_param_spline_couplings_ import U1RQSplineCoupling_, SU2RQSplineCoupling_, SU3RQSplineCoupling_
+
+from .gauge.gauge_param_couplings_ import Pade11Coupling_, SUnParamAffineCoupling_
