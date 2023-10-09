@@ -13,9 +13,10 @@ import torch
 from .mask import EvenOddMask, AlongAxesEvenOddMask
 
 
-class DoubleMask:
+class DoubleMask(torch.nn.Module):
 
     def __init__(self, *, passive_maker_mask, frozen_maker_mask):
+        super().__init__()
         self.passive_maker_mask = passive_maker_mask
         self.frozen_maker_mask = frozen_maker_mask
 
