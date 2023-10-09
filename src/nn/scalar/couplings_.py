@@ -122,7 +122,7 @@ class AffineCoupling_(Coupling_):
 
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
-        t, s = out.split((1, 1), dim=self.channels_axis)
+        t, s = out.chunk(2, dim=self.channels_axis)
         # purify: get rid of unwanted contributions to x_frozen
         t = self.mask.purify(self.postprocess(t), channel=parity)
         s = self.mask.purify(self.postprocess(s), channel=parity)
@@ -131,7 +131,7 @@ class AffineCoupling_(Coupling_):
 
     def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
         out = net(self.preprocess_fz(x_frozen))
-        t, s = out.split((1, 1), dim=self.channels_axis)
+        t, s = out.chunk(2, dim=self.channels_axis)
         # purify: get rid of unwanted contributions to x_frozen
         t = self.mask.purify(self.postprocess(t), channel=parity)
         s = self.mask.purify(self.postprocess(s), channel=parity)
