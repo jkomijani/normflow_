@@ -60,9 +60,9 @@ class UnMatrixParametrizer:
         such that if True, this method returns `M * M_old^\dagger`,
         where `M_old` is the matrix constructed with self.sorted_phase.
         """
-        eig = exp1j(phase)
+        eig = torch.exp(1j * phase)
         modal = self.modal_matrix
-        eig_prime = eig if not reduce_ else eig * exp1j(-self.phase)
+        eig_prime = eig if not reduce_ else eig * torch.exp(-1j * self.phase)
         matrix = mul(modal, eig_prime.unsqueeze(-1) * modal.adjoint())
 
         # Note: when |eig| = 1, logJ of eig to phase conversion is zero;
@@ -154,12 +154,13 @@ class SU2MatrixParametrizer(UnMatrixParametrizer):
 
     @staticmethod
     def sortedphase2param_(sorted_phase):
-        """param changes between 0 and 1."""
+        """Return parameters that vary between 0 and 1."""
         logJ = 0  # logJ = -np.log(pi) x N, but suppress the additive constant
         return sorted_phase[..., 1:] / pi, logJ
 
     @staticmethod
     def param2sortedphase_(param):
+        """Inverse of sortedphase2param_()"""
         logJ = 0  # logJ = np.log(pi) x N, but suppress the additive constant
         return torch.cat((-param * pi, param * pi), dim=-1), logJ
 
@@ -179,7 +180,9 @@ class SU3MatrixParametrizer(UnMatrixParametrizer):
 
     @staticmethod
     def sortedphase2param_(sorted_phase):
-        r"""Return :math:`(w, r)` as defined below
+        r"""Return parameters that vary between 0 and 1.
+
+        More precisely, return :math:`(w, r)` as defined below
 
         .. math::
 
@@ -219,19 +222,18 @@ class U1Parametrizer:
         """Return angle of eigenvalues and logJ of transformation."""
         phase = torch.angle(u1)  # in (-pi, pi]
         self.phase = phase.unsqueeze(-1)  # to be consistent with SU(n)
-        return self.phase, 0  # logJ = 0
+        param = phase / (2*pi) + 1/2
+        logJ = 0  # logJ = -np.log(2 pi)xN, but suppress the additive constant
+        return param, logJ
 
-    def param2matrix_(self, phase, reduce_=False):
+    def param2matrix_(self, param, reduce_=False):
+        phase = (param - 1/2) * 2 * pi
         if reduce_:
             phase -= self.phase
-        return exp1j(phase).squeeze(-1), 0
+        logJ = 0  # logJ = np.log(2 pi)xN, but suppress the additive constant
+        return torch.exp(1j * phase).squeeze(-1), logJ
 
 
 # =============================================================================
 def sum_density(x):
     return torch.sum(x, dim=list(range(1, x.dim())))
-
-
-def exp1j(phase):
-    """Return `e^{i * phase}`."""
-    return torch.exp(1J * phase)
