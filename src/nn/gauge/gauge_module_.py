@@ -35,7 +35,7 @@ class GaugeModule_(MatrixModule_):
     ----------
     param_net_: instance of Module_ or ModuleList_
         a core network to change a set of parameters corresponding to the
-        staples links as specfied in the supper class `MatrixModule_`.
+        stapled links as specified in the supper class `MatrixModule_`.
 
     mu : int
         specifies the direction of links that are going to be changed
@@ -44,10 +44,10 @@ class GaugeModule_(MatrixModule_):
         (in combination w/ mu) specifies the plane of staples to be calculated
     
     staple_handle: class instance
-         to calculate staples and use them.
+        to calculate staples and use them.
 
     matrix_handle: class instance
-         to handle matrices as expected in the supper class `MatrixModule_`.
+        to handle matrices as expected in the supper class `MatrixModule_`.
     """
     def __init__(self, param_net_,
             *, mu, nu_list, staples_handle, matrix_handle, label="gauge_"
@@ -140,19 +140,19 @@ class GaugeModule_(MatrixModule_):
 
 # =============================================================================
 class SVDGaugeModule_(StapledMatrixModule_):
-
-    #   *** NOT UPDATED ***
-
     """
-    Similar to GaugeModule_ but used singular values of the staples for
-    processing.
+    Similar to GaugeModule_ but uses singular values of the staples for
+    processing too.
 
     Parameters
     ----------
-    net_: instance of Module_ or ModuleList_
-        a net_ that takes as inputs a list that includes the svd-stapled-links
-        that are going to be changed (the active ones) and the singular values
-        of the corresponding staples.
+    dual_param_net_: instance of Module_ or ModuleList_
+        a core network to change a set of parameters corresponding to the
+        stapled links as specified in the supper class `StapledMatrixModule_`.
+
+    param_net_: instance of Module_ or ModuleList_
+        a core network to change a set of parameters corresponding to the
+        stapled links as specefied in the supper class `StapledMatrixModule_`.
 
     mu : int
         specifies the direction of links that are going to be changed
@@ -160,22 +160,19 @@ class SVDGaugeModule_(StapledMatrixModule_):
     nu_list : list of int
         (in combination w/ mu) specifies the plane of staples to be calculated
     
-    mask : instance of Mask
-        used for partitioning the links and their corresponding staples to
-        active and frozen. Note that mask should be instantiated with e.g.
-        split_form='directional_even-odd'.
-
     staple_handle: class instance
-         A class instance to handle matrices as expected in `self._kernel`
+        to calculate staples and use them.
 
     matrix_handle: class instance
-         A class instance to handle matrices as expected in `self._kernel`
+        to handle matrices as expected in the supper class `MatrixModule_`.
     """
 
-    def __init__(self, net_,
-            *, mu, nu_list, staples_handle, matrix_handle, mask, label="gauge_"
+    def __init__(self, dual_param_net_, param_net_,
+            *, mu, nu_list, staples_handle, matrix_handle, label="gauge_"
             ):
-        super().__init__(net_, matrix_handle=matrix_handle, mask=mask)
+        super().__init__(
+                dual_param_net_, param_net_, matrix_handle=matrix_handle
+                )
         self.mu = mu
         self.nu_list = nu_list
         self.staples_handle = staples_handle
@@ -187,17 +184,15 @@ class SVDGaugeModule_(StapledMatrixModule_):
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
-        # below, sv stands for singular values (corres. to staples)
-        # plaq, means effective open plaquettes, which are SU(n) matrices.
-        plaq_0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        # slink: stapled link
+        slink, svd_ = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq_1, logJ = super().forward(
-                plaq_0, staples_sv=staples_sv, log0=log0, reduce_=True
+        slink_rotation, logJ = super().forward(
+                slink, log0=log0, svd_=svd_, reduce_=True
                 )
-        plaq_0 = None  # because reduce_ is set to True above
 
-        x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
+        x_mu = self.staples_handle.push2link(
+                x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
         x[:, self.mu] = x_mu
@@ -210,53 +205,59 @@ class SVDGaugeModule_(StapledMatrixModule_):
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
-        # below, sv stands for singular values (corres. to staples)
-        plaq_0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
+        slink, svd_ = self.staples_handle.staple(x_mu, staples=staples)
 
-        plaq_1, logJ = super().backward(
-                plaq_0, staples_sv=staples_sv, log0=log0, reduce_=True
+        slink_rotation, logJ = super().backward(
+                slink, log0=log0, svd_=svd_, reduce_=True
                 )
-        plaq_0 = None  # because reduce_ is set to True above
 
-        x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
+        x_mu = self.staples_handle.push2link(
+                x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
         x[:, self.mu] = x_mu
 
         return x, logJ
 
-    def _hack(self, x, log0=0):
+    def _hack(self, x, log0=0, forward=True):
         """Similar to the forward method, but returns intermediate parts."""
+
+        x = x.clone()
+
         x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
                 )
         stack = [(x_mu, staples)]
-        # below, sv stands for singular values (corres. to staples)
-        plaq_0, staples_sv = self.staples_handle.staple(x_mu, staples=staples)
-        stack.append((plaq_0, staples_sv))
+        slink, svd_ = self.staples_handle.staple(x_mu, staples=staples)
+        stack.append((slink, svd_))
 
-        plaq_1, logJ = super().forward(
-                plaq_0, staples_sv=staples_sv, log0=log0, reduce_=True
+        if forward:
+            slink_rotation, logJ = super().forward(
+                slink, log0=log0, svd_=svd_, reduce_=True
                 )
-        plaq_0 = None  # because reduce_ is set to True above
-        stack.append(super()._hack(plaq_0, staples_sv=staples_sv))
-        stack.append((plaq_1, staples_sv, logJ))
+        else:
+            slink_rotation, logJ = super().backward(
+                slink, log0=log0, svd_=svd_, reduce_=True
+                )
 
-        x_mu = self.staples_handle.push2links(
-                x_mu, eff_proj_plaq_old=plaq_0, eff_proj_plaq_new=plaq_1
+        stack.append(super()._hack(slink, forward=forward, reduce_=True))
+        stack.append((slink_rotation,))
+
+        x_mu = self.staples_handle.push2link(
+                x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
         stack.append((x_mu,))
 
         x[:, self.mu] = x_mu
+        stack.append((x, logJ))
 
         return stack
 
     def transfer(self, **kwargs):
         return self.__class__(
-                self.net_.transfer(**kwargs),
+                self.param_net_.transfer(**kwargs),
                 mu=self.mu,
                 nu_list=self.nu_list,
                 mask=self.mask,

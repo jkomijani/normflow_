@@ -16,90 +16,115 @@ from .matrix_module_ import MatrixModule_
 
 # =============================================================================
 class StapledMatrixModule_(Module_):
+    """A module for transforming matrices.
 
-    def __init__(self, net_, *, matrix_handle, mask, label="matrix_module_"):
-        """A wrapper to transform matrices using the given network `net_`
-        and the parametrization specified in `matrix_handle`.
-        For more information on how `matrix_handle` is used, see self._kernel.
-        """
+    Parameters
+    ----------
+    param_net_: instance of Module_ or ModuleList_
+        to change a set of parameters corresponding to the matrices links as
+        specfied in the upper class `MatrixModule_`.
+
+    matrix_handle: class instance
+        for parametrization of the matrices. For more information on how it is
+        used, see `self._kernel`.
+    """
+    def __init__(self, dual_param_net_, param_net_,
+            *, matrix_handle, label="matrix_module_"
+            ):
         super().__init__(label=label)
-        self.net_ = net_
-        self.mask = mask
+        self.dual_param_net_ = dual_param_net_
+        self.param_net_ = param_net_
         self.matrix_handle = matrix_handle
 
-    def forward(self, x, *, staples_sv, log0=0, reduce_=False):
+    def forward(self, x, *, svd_, log0=0, reduce_=False):
         return self._kernel(
-                self.net_.forward,
-                x=x, staples_sv=staples_sv, log0=log0, reduce_=reduce_
+                x, svd_=svd_, log0=log0, reduce_=reduce_, forward=True
                 )
 
-    def backward(self, x, *, staples_sv, log0=0, reduce_=False):
+    def backward(self, x, *, svd_, log0=0, reduce_=False):
         return self._kernel(
-                self.net_.backward,
-                x=x, staples_sv=staples_sv, log0=log0, reduce_=reduce_
+                x, svd_=svd_, log0=log0, reduce_=reduce_, forward=False
                 )
 
-    def _kernel(self, net_method_, *, x, staples_sv, log0=0, reduce_=False):
-        """Return the transformed x and its Jacobian.
+    def _kernel(self, matrix, *, svd_, forward, reduce_, log0=0):
+        """Return the transformed matrix and its Jacobian.
 
-        Here are the steps:
-        1. compute independent parameters corresp. to eigenvalues of matrix x,
-        2. transform the parameters,
-        3. construct new matrices with the transformed parameters.
-
-        Parameters
-        ----------
-        staples_sv : tensor
-            The singular values (sv) of the staples
+        To this end, `matrix_handle` is used for parametrizing the input
+        matrix. Then `param_net_` is used to transform the parameters.
+        Finally, `matrix_handle` is used to construct a new matrix from the
+        transformed parameters.
         """
-        # First, parametrize the (eigenvalues of) matrix x
-        param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
-        # The channel axis, where the parameterz are listed, should be moved
-        # from -1 to 1
-        staples_sv = torch.movedim(staples_sv, -1, 1)
+        # 1. Parametrize the input matrix
+        param, logJ_mat2par = self.matrix_handle.matrix2param_(matrix)
+
+        # 2. Move the channel axis, in which the param are listed, from -1 to 1
         param = torch.movedim(param, -1, 1)
+        singv = torch.movedim(svd_.S, -1, 1)  # singular values
 
-        # Now, mask both eigenvalues and staples singular-values
-        param_active, param_frozen = self.mask.split(param)
-        sv_frozen, _ = self.mask.split(staples_sv)
-        # the staples corresponding to param_active do not vary when
-        # param_active vary; that's why they are tagged as frozen.
+        # 3. Transform param
+        if forward:
+            param, logJ_dualpar2par = self.dual_param_net_.forward(param, singv)
+            param, logJ_par2par = self.param_net_.forward(param)
+        else:
+            param, logJ_par2par = self.param_net_.backward(param)
+            param, logJ_dualpar2par = self.dual_param_net_.backward(param, singv)
 
-        out, logJ_par2par = net_method_([param_active, sv_frozen])
-        param_active = out[0]  # sv_frozen = out[1]
+        # 4. Move back the channel axis to -1
+        param = torch.movedim(param, 1, -1)  # return channel axis to -1
 
-        param = self.mask.cat(param_active, param_frozen)
-        param = torch.movedim(param, 1, -1)  # channel axis to -1
+        # 5. Construct a new matrix from the transformed parameters
+        matrix, logJ_par2mat = \
+                self.matrix_handle.param2matrix_(param, reduce_=reduce_)
 
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
+        # 6. Add up all log-Jacobians
+        logJ = logJ_mat2par + logJ_dualpar2par + logJ_par2par + logJ_par2mat
 
-        logJ = logJ_mat2par + logJ_par2par + logJ_par2mat
+        return matrix, log0 + logJ
 
-        return x, log0 + logJ
-
-    def _hack(self, x, *, staples_sv, log0=0, reduce_=False):
-        """Similar to the forward method, but returns intermediate parts too."""
-        param, logJ_mat2par = self.matrix_handle.matrix2param_(x)
+    def _hack(self, matrix, *, svd_, log0=0, forward=True, reduce_=False):
+        """Similar to the forward/backward methods, but returns intermediate
+        parts too.
+        """
+        # 1. Parametrize the input matrix
+        param, logJ_mat2par = self.matrix_handle.matrix2param_(matrix)
         stack = [(param, logJ_mat2par)]
 
-        param_active, param_frozen = self.mask.split(param)
-        sv_frozen, _ = self.mask.split(staples_sv)
-        sv_frozen = torch.movedim(sv_frozen, -1, 1)
-        param_active = torch.movedim(param_active, -1, 1)
-        out, logJ_par2par = self.net_([param_active, sv_frozen])
-        param_active = out[0]  # sv_frozen = out[1]
-        param_active = torch.movedim(param_active, 1, -1)  # channel axis to -1
-        param = self.mask.cat(param_active, param_frozen)
-        stack.append((param, logJ_par2par))
+        # 2. Move the channel axis, in which the param are listed, from -1 to 1
+        param = torch.movedim(param, -1, 1)  # move channel axis from -1 to 1
+        singv = torch.movedim(svd_.S, -1, 1)  # singular values
 
-        x, logJ_par2mat = self.matrix_handle.param2matrix_(param, reduce_=reduce_)
-        stack.append((x, logJ_par2mat))
+        # 3. Transform param
+        if forward:
+            param, logJ_dualpar2par = self.dual_param_net_.forward(param, singv)
+            stack.append((param, logJ_dualpar2par))
+            param, logJ_par2par = self.param_net_.forward(param)
+            stack.append((param, logJ_par2par))
+        else:
+            param, logJ_par2par = self.param_net_.backward(param)
+            stack.append((param, logJ_par2par))
+            param, logJ_dualpar2par = self.dual_param_net_.backward(param, singv)
+            stack.append((param, logJ_dualpar2par))
+
+        # 4. Move back the channel axis to -1
+        param = torch.movedim(param, 1, -1)  # return channel axis to -1
+
+        # 5. Construct a new matrix from the transformed parameters
+        matrix, logJ_par2mat = \
+        matrix, logJ_par2mat = \
+                self.matrix_handle.param2matrix_(param, reduce_=reduce_)
+        stack.append((matrix, logJ_par2mat))
+
+        # 6. Add up all log-Jacobians
+        logJ = logJ_mat2par + logJ_dualpar2par + logJ_par2par + logJ_par2mat
+        stack.append((matrix, log0 + logJ))
 
         return stack
 
     def transfer(self, **kwargs):
-        return self.__class__(self.net_.transfer(**kwargs),
-                             matrix_handle=self.matrix_handle, label=self.label
+        return self.__class__(self.dual_param_net_.transfer(**kwargs),
+                             self.param_net_.transfer(**kwargs),
+                             matrix_handle=self.matrix_handle,
+                             label=self.label
                              )
 
 
