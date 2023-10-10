@@ -18,64 +18,102 @@ pi = np.pi
 
 # =============================================================================
 class Pade11Coupling_(Coupling_):
-    """A Coupling_ with a transformations as a Pade approximant of order 1/1
+    r"""A transformations as a Pade approximant of order 1/1
 
     .. math::
 
         f(x; t) = x / (x + e^t * (1 - x))
 
-    Note that :math:`f(.; 1/t)` is the inverse of :math:`f(.; t)`.
+    that maps :math:`[0, 1] \to [0, 1]` and is useful for input and output
+    variables that vary between zero and one.
 
-    This transformation is useful when the input and output variables vary
-    between zero and one.
-
-    This transformation is equivalent to
-
-    .. math::
-
-        f(x; t) = \expit(\logit(x) - t)
+    This transformation is equivalent to math:`f(x; t) = \expit(\logit(x) - t)`
+    and its inverse is :math:`f(.; -t)`.
     """
     def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
         t = net(x_frozen)
         t = self.mask.purify(t, channel=parity)
         denom = x_active + torch.exp(t) * (1 - x_active)
-        y = x_active / denom
+        x_active = x_active / denom
         logJ = self.sum_density(t - 2 * torch.log(denom))
-        return y, log0 + logJ
+        return x_active, log0 + logJ
 
     def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
         t = net(x_frozen)
         t = self.mask.purify(t, channel=parity)
         denom = x_active + torch.exp(-t) * (1 - x_active)
-        y = x_active / denom
+        x_active = x_active / denom
         logJ = self.sum_density(-t - 2 * torch.log(denom))
-        return y, log0 + logJ
+        return x_active, log0 + logJ
 
 
+# =============================================================================
 class Pade22Coupling_(Coupling_):
-    pass
+    r"""A transformations as an invertible Pade approximant of order 2/2
+
+    .. math::
+
+        f(x; t) = (x^2 + a x (1 - x)) / (1 + b x (1 - x))
+
+    that maps :math:`[0, 1] \to [0, 1]` and is useful for input and output
+    variables that vary between zero and one.
+    """
+    def atomic_forward(self, *, x_active, x_frozen, parity, net, log0=0):
+        t = net(x_frozen)
+        t = self.mask.purify(t, channel=parity)
+        d0, d1 = torch.exp(t).chunk(2, dim=self.channels_axis)
+
+        def pade22_(x):
+            denom = (1 + (d1 + d0 - 2) * x * (1 - x))
+            g_0 = x * (x + d0 * (1 - x)) / denom
+            g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
+            return g_0, self.sum_density(torch.log(g_1))
+
+        x_active, logJ = pade22_(x_active)
+
+        return x_active, log0 + logJ
+
+    def atomic_backward(self, *, x_active, x_frozen, parity, net, log0=0):
+        t = net(x_frozen)
+        t = self.mask.purify(t, channel=parity)
+        d0, d1 = torch.exp(t).chunk(2, dim=self.channels_axis)
+
+        def invert(y):
+            # returns the positive solution of $a x^2 + b x + c = 0$
+            c = y
+            b = (d1 + d0 - 2) * y - d0
+            a = -1 - b
+            delta = torch.sqrt(b**2 - 4 * c * a)
+            x = (-b - delta) / (2 * a)
+            x[a == 0] = (-c / b)[a == 0]
+            return x
+
+        def invpade22_(y):
+            x = invert(y)
+            denom = (1 + (d1 + d0 - 2) * x * (1 - x))
+            g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
+            return x, - self.sum_density(torch.log(g_1))
+
+        x_active, logJ = invpade22_(x_active)
+
+        return x_active, log0 + logJ
 
 
 # =============================================================================
 class Pade11DualCoupling_(Module_):
-    """A Coupling_ with a transformations as a Pade approximant of order 1/1
+    r"""A transformations as a Pade approximant of order 1/1
 
     .. math::
 
         f(x; t) = x / (x + e^t * (1 - x))
 
-    Note that :math:`f(.; 1/t)` is the inverse of :math:`f(.; t)`.
+    that maps :math:`[0, 1] \to [0, 1]` and is useful for input and output
+    variables that vary between zero and one.
 
-    This transformation is useful when the input and output variables vary
-    between zero and one.
-
-    This transformation is equivalent to
-
-    .. math::
-
-        f(x; t) = \expit(\logit(x) - t)
+    This transformation is equivalent to math:`f(x; t) = \expit(\logit(x) - t)`
+    and its inverse is :math:`f(.; -t)`.
     """
-    def __init__(self, net, *, mask, label='coupling_'):
+    def __init__(self, net, *, mask, label='p11_dualcoupl_'):
         super().__init__(label=label)
         self.net = net
         self.mask = mask
@@ -103,6 +141,70 @@ class Pade11DualCoupling_(Module_):
         denom = x_active + torch.exp(-t) * (1 - x_active)
         x_active = x_active / denom
         logJ = self.sum_density(-t - 2 * torch.log(denom))
+
+        return self.mask.cat(x_active, x_passive), log0 + logJ
+
+
+# =============================================================================
+class Pade22DualCoupling_(Module_):
+    r"""A transformations as an invertible Pade approximant of order 2/2
+
+    .. math::
+
+        f(x; t) = (x^2 + a x (1 - x)) / (1 + b x (1 - x))
+
+    that maps :math:`[0, 1] \to [0, 1]` and is useful for input and output
+    variables that vary between zero and one.
+    """
+    def __init__(self, net, *, mask, channels_axis=1, label='p22_dualcoupl_'):
+        super().__init__(label=label)
+        self.net = net
+        self.mask = mask
+        self.channels_axis = channels_axis
+
+    def forward(self, x, s, log0=0):
+        x_active, x_passive = self.mask.split(x)
+        s_frozen, s_passive = self.mask.split(s)
+
+        t = self.net(s_frozen)
+        t = self.mask.purify(t, channel=0)
+        d0, d1 = torch.exp(t).chunk(2, dim=self.channels_axis)
+
+        def pade22_(x):
+            denom = (1 + (d1 + d0 - 2) * x * (1 - x))
+            g_0 = x * (x + d0 * (1 - x)) / denom
+            g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
+            return g_0, self.sum_density(torch.log(g_1))
+
+        x_active, logJ = pade22_(x_active)
+
+        return self.mask.cat(x_active, x_passive), log0 + logJ
+
+    def backward(self, x, s, log0=0):
+        x_active, x_passive = self.mask.split(x)
+        s_frozen, s_passive = self.mask.split(s)
+
+        t = self.net(s_frozen)
+        t = self.mask.purify(t, channel=0)
+        d0, d1 = torch.exp(t).chunk(2, dim=self.channels_axis)
+
+        def invert(y):
+            # returns the positive solution of $a x^2 + b x + c = 0$
+            c = y
+            b = (d1 + d0 - 2) * y - d0
+            a = -1 - b
+            delta = torch.sqrt(b**2 - 4 * c * a)
+            x = (-b - delta) / (2 * a)
+            x[a == 0] = (-c / b)[a == 0]
+            return x
+
+        def invpade22_(y):
+            x = invert(y)
+            denom = (1 + (d1 + d0 - 2) * x * (1 - x))
+            g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
+            return x, - self.sum_density(torch.log(g_1))
+
+        x_active, logJ = invpade22_(x_active)
 
         return self.mask.cat(x_active, x_passive), log0 + logJ
 

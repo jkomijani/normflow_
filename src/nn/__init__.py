@@ -25,4 +25,5 @@ from .gauge.gauge_module_ import GaugeModule_, SVDGaugeModule_, GaugeModuleList_
 from .gauge.gauge_param_spline_couplings_ import U1RQSplineCoupling_, SU2RQSplineCoupling_, SU3RQSplineCoupling_
 
 from .gauge.gauge_param_couplings_ import Pade11Coupling_, Pade11DualCoupling_
+from .gauge.gauge_param_couplings_ import Pade22Coupling_, Pade22DualCoupling_
 from .gauge.gauge_param_couplings_ import SUnParamAffineCoupling_
