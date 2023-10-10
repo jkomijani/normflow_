@@ -107,6 +107,107 @@ class Logit_(Module_):
         return Expit_().forward(x, log0)
 
 
+class Pade11_(Module_):
+    r"""A transformations as a Pade approximant of order 1/1
+
+    .. math::
+
+        f(x; t) = x / (x + e^t * (1 - x))
+
+    that maps :math:`[0, 1] \to [0, 1]` and is useful for input and output
+    variables that vary between zero and one.
+
+    This transformation is equivalent to math:`f(x; t) = \expit(\logit(x) - t)`
+    and its inverse is :math:`f(.; -t)`.
+    """
+    def __init__(self, n_channels, channels_axis=1, label='Pade11'):
+        super().__init__(label=label)
+        self.logw = torch.nn.Parameter(torch.zeros(n_channels))
+        self.n_channels = n_channels
+        self.channels_axis = channels_axis
+
+    def forward(self, x, log0=0):
+        logw = self._logw_reshaped(x.shape)
+        denom = x + torch.exp(logw) * (1 - x)
+        logJ = self.sum_density(logw - 2 * torch.log(denom))
+        return x / denom, log0 + logJ
+
+    def backward(self, x, log0=0):
+        logw = self._logw_reshaped(x.shape)
+        denom = x + torch.exp(-logw) * (1 - x)
+        logJ = self.sum_density(-logw - 2 * torch.log(denom))
+        return x / denom, log0 + logJ
+
+    def _logw_reshaped(self, shape):
+        if self.n_channels == 1:
+            return self.logw
+        else:
+            shape = [1 for _ in shape]
+            shape[self.channels_axis] = self.n_channels
+            return self.logw.reshape(*shape)
+
+
+class Pade22_(Module_):
+    r"""A transformations as an invertible Pade approximant of order 2/2
+
+    .. math::
+
+        f(x; t) = (x^2 + a x (1 - x)) / (1 + b x (1 - x))
+
+    that maps :math:`[0, 1] \to [0, 1]` and is useful for input and output
+    variables that vary between zero and one.
+    """
+    def __init__(
+            self, n_channels, channels_axis=1, symmetric=False, label='Pade22'
+            ):
+        super().__init__(label=label)
+        self.logd0 = torch.nn.Parameter(torch.zeros(n_channels))
+        if not symmetric:
+            self.logd1 = torch.nn.Parameter(torch.zeros(n_channels))
+        else:
+            self.logd1 = self.logd0
+        self.n_channels = n_channels
+        self.channels_axis = channels_axis
+        self.symmetric = symmetric
+
+    def forward(self, x, log0=0):
+        d0, d1 = self._derivatives_reshaped(x.shape)
+        denom = (1 + (d1 + d0 - 2) * x * (1 - x))
+        g_0 = x * (x + d0 * (1 - x)) / denom
+        g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
+        return g_0, log0 + self.sum_density(torch.log(g_1))
+
+    def backward(self, y, log0=0):
+        d0, d1 = self._derivatives_reshaped(y.shape)
+
+        def invert(y):
+            # returns the positive solution of $a x^2 + b x + c = 0$
+            c = y
+            b = (d1 + d0 - 2) * y - d0
+            a = -1 - b
+            delta = torch.sqrt(b**2 - 4 * c * a)
+            x = (-b - delta) / (2 * a)
+            x[a == 0] = (-c / b)[a == 0]
+            return x
+
+        x = invert(y)
+        denom = (1 + (d1 + d0 - 2) * x * (1 - x))
+        g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
+        return x, log0 - self.sum_density(torch.log(g_1))
+
+    def _derivatives_reshaped(self, shape):
+        if self.n_channels == 1:
+            logd0 = self.logd0
+            logd1 = self.logd1
+        else:
+            shape = [1 for _ in shape]
+            shape[self.channels_axis] = self.n_channels
+            logd0 = self.logd0.reshape(*shape)
+            logd1 = self.logd1.reshape(*shape)
+
+        return torch.exp(logd0), torch.exp(logd1)
+
+
 class SplineNet_(SplineNet, Module_):
     """Identical to SplineNet, except for taking care of log_jacobian.
 
