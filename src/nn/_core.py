@@ -4,6 +4,8 @@
 import torch
 import numpy as np
 import copy
+import io
+import base64
 
 
 # =============================================================================
@@ -108,13 +110,12 @@ class ModuleList_(torch.nn.ModuleList):
         torch.save(self.state_dict(), serialized_model)
         return base64.b64encode(serialized_model.getbuffer()).decode('utf-8')
 
-    def set_weights_blob(self, blob):
+    def set_weights_blob(self, blob, map_location=torch.device('cpu')):
         weights = torch.load(
                 io.BytesIO(base64.b64decode(blob.strip())),
-                map_location=torch.device('cpu'))
+                map_location=map_location
+                )
         self.load_state_dict(weights)
-        if torch_device == 'cuda':
-            self.cuda()
 
     def freeze_parameters(self):
         for param in self.parameters():

@@ -20,8 +20,6 @@ used by other modules of this package.
 
 
 import torch
-import base64
-import io
 import time
 
 import numpy as np
