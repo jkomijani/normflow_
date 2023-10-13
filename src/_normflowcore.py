@@ -277,27 +277,8 @@ class Fitter:
         return (logq - logp).var()
 
     @staticmethod
-    def calc_kl_weightedmean(logq, logp):
-        logqp = logq - logp
-        with torch.no_grad():
-            q_by_p = torch.exp(torch.clamp(logqp - logqp.mean(), min=-5, max=5))
-        return (q_by_p * logqp).mean()
-
-    @staticmethod
-    def calc_kl_uppermean(logq, logp):
-        logqp = logq - logp
-        return torch.mean(logqp[logqp > logqp.median()])
-
-    @staticmethod
-    def calc_kl_lowermean(logq, logp):
-        logqp = logq - logp
-        return torch.mean(logqp[logqp < logqp.median()])
-
-    @staticmethod
-    def calc_less(logq, logp):
-        r"""LESS: Logarithmic effective sample size.
-
-        LESS defined as
+    def calc_direct_kl_mean(logq, logp):
+        r"""Return *direct* KL mean, which is defined as
 
         .. math::
 
@@ -309,20 +290,13 @@ class Fitter:
 
            logz = \log( \sum(frac{p}{q}) / N)
 
-        wbere N is the number of samples.
-
-        Note that LESS is invariant under scaling of p and/or q.
+        wbere N is the number of samples. The direct KL means is invariant
+        under scaling p and/or q.
         """
         logpq = logp - logq
-        logz = torch.logsumexp(logpq, dim=0) - np.log(logpq.shape[0])
+        logz = torch.logsumexp(logpq, dim=0) - np.log(logp.shape[0])
         logpq = logpq - logz  # p is now normalized
-        less = (torch.exp(logpq) * logpq).mean()
-        return less
-
-    @staticmethod
-    def calc_direct_kl_mean(logq, logp):
-        logpq = logp - logq
-        p_by_q = torch.exp(logpq - logpq.mean())
+        p_by_q = torch.exp(logpq)
         return (p_by_q * logpq).mean()
 
     @staticmethod
@@ -333,7 +307,7 @@ class Fitter:
 
     @staticmethod
     def calc_minus_logz(logq, logp):
-        logz = torch.logsumexp(logp -logq, dim=0) - np.log(logp.shape[0])
+        logz = torch.logsumexp(logp - logq, dim=0) - np.log(logp.shape[0])
         return -logz
 
     @staticmethod
