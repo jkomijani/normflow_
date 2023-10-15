@@ -18,14 +18,28 @@ from ..matrix.stapled_matrix_module_ import StapledMatrixModule_
 # =============================================================================
 class GaugeModuleList_(ModuleList_):
 
+    vector_axis = 1
+    unbind_vector_axis = True  # the vector axis then will be moved to 0
+
     def forward(self, x, log0=0):
-        return super().forward(x.clone(), log0)
+        if self.unbind_vector_axis:
+            x = list(torch.unbind(x, self.vector_axis))
+            x, log0 = super().forward(x, log0)
+            return torch.stack(x, dim=self.vector_axis), log0
+        else:
+            return super().forward(x.clone(), log0)
 
     def backward(self, x, log0=0):
-        return super().backward(x.clone(), log0)
+        if self.unbind_vector_axis:
+            x = list(torch.unbind(x, self.vector_axis))
+            x, log0 = super().backward(x, log0)
+            return torch.stack(x, dim=self.vector_axis), log0
+        else:
+            return super().backward(x.clone(), log0)
 
     def hack(self, x, log0=0):
-        return super().hack(x.clone(), log0)
+        x = list(torch.unbind(x, 1)) if self.unbind_vector_axis else x.clone()
+        return super().hack(x, log0)
 
 
 # =============================================================================
@@ -49,6 +63,9 @@ class GaugeModule_(MatrixModule_):
     matrix_handle: class instance
         to handle matrices as expected in the supper class `MatrixModule_`.
     """
+
+    unbounded_vector_axis = True
+
     def __init__(self, param_net_,
             *, mu, nu_list, staples_handle, matrix_handle, label="gauge_"
             ):
@@ -59,7 +76,10 @@ class GaugeModule_(MatrixModule_):
         self.label = label
 
     def forward(self, x, log0=0):
-        x_mu = x[:, self.mu]
+        if self.unbounded_vector_axis:
+            x_mu = x[self.mu]
+        else:
+            x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
@@ -73,12 +93,18 @@ class GaugeModule_(MatrixModule_):
                 x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
-        x[:, self.mu] = x_mu
+        if self.unbounded_vector_axis:
+            x[self.mu] = x_mu
+        else:
+            x[:, self.mu] = x_mu
 
         return x, logJ
 
     def backward(self, x, log0=0):
-        x_mu = x[:, self.mu]
+        if self.unbounded_vector_axis:
+            x_mu = x[self.mu]
+        else:
+            x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
@@ -91,16 +117,20 @@ class GaugeModule_(MatrixModule_):
                 x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
-        x[:, self.mu] = x_mu
+        if self.unbounded_vector_axis:
+            x[self.mu] = x_mu
+        else:
+            x[:, self.mu] = x_mu
 
         return x, logJ
 
     def _hack(self, x, log0=0, forward=True):
         """Similar to the forward method, but returns intermediate parts."""
 
-        x = x.clone()
-
-        x_mu = x[:, self.mu]
+        if self.unbounded_vector_axis:
+            x_mu = x[self.mu]
+        else:
+            x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
@@ -122,7 +152,10 @@ class GaugeModule_(MatrixModule_):
                 )
         stack.append((x_mu,))
 
-        x[:, self.mu] = x_mu
+        if self.unbounded_vector_axis:
+            x[self.mu] = x_mu
+        else:
+            x[:, self.mu] = x_mu
         stack.append((x, logJ))
 
         return stack
@@ -179,7 +212,10 @@ class SVDGaugeModule_(StapledMatrixModule_):
         self.label = label
 
     def forward(self, x, log0=0):
-        x_mu = x[:, self.mu]
+        if self.unbounded_vector_axis:
+            x_mu = x[self.mu]
+        else:
+            x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
@@ -195,12 +231,18 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
-        x[:, self.mu] = x_mu
+        if self.unbounded_vector_axis:
+            x[self.mu] = x_mu
+        else:
+            x[:, self.mu] = x_mu
 
         return x, logJ
 
     def backward(self, x, log0=0):
-        x_mu = x[:, self.mu]
+        if self.unbounded_vector_axis:
+            x_mu = x[self.mu]
+        else:
+            x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
@@ -215,16 +257,20 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 x_mu, slink_rotation=slink_rotation, svd_=svd_
                 )
 
-        x[:, self.mu] = x_mu
+        if self.unbounded_vector_axis:
+            x[self.mu] = x_mu
+        else:
+            x[:, self.mu] = x_mu
 
         return x, logJ
 
     def _hack(self, x, log0=0, forward=True):
         """Similar to the forward method, but returns intermediate parts."""
 
-        x = x.clone()
-
-        x_mu = x[:, self.mu]
+        if self.unbounded_vector_axis:
+            x_mu = x[self.mu]
+        else:
+            x_mu = x[:, self.mu]
 
         staples = self.staples_handle.calc_staples(
                 x, mu=self.mu, nu_list=self.nu_list
@@ -250,7 +296,10 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 )
         stack.append((x_mu,))
 
-        x[:, self.mu] = x_mu
+        if self.unbounded_vector_axis:
+            x[self.mu] = x_mu
+        else:
+            x[:, self.mu] = x_mu
         stack.append((x, logJ))
 
         return stack

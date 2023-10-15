@@ -67,7 +67,7 @@ class FixedStaplesHandle:
 # =============================================================================
 class WilsonStaplesHandle(TemplateStaplesHandle):
 
-    vector_axis = 1  # The batch axis is 0
+    vector_axis = 0
 
     def makesure_correct_vector_axis(self, vector_axis):
         assert self.vector_axis == vector_axis, "vector axis?"
