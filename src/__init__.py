@@ -1,9 +1,4 @@
-# Copyright (c) 2021-2022 Javad Komijani
-
-# _global_settings
-from ._global_settings import reset_default_dtype_device
-from ._global_settings import get_default_dtype_device
-from ._global_settings import manual_torch_seed, manual_numpy_seed
+# Copyright (c) 2021-2023 Javad Komijani
 
 # _normflowcore
 from ._normflowcore import Model
