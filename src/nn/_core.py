@@ -74,7 +74,7 @@ class ModuleList_(torch.nn.ModuleList):
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-    def parameters(self):
+    def grouped_parameters(self):
         if self._groups is None:
             return super().parameters()
         else:

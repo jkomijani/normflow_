@@ -192,9 +192,12 @@ class Fitter:
 
         self.loss_fn = Fitter.calc_kl_mean if loss_fn is None else loss_fn
 
-        self.optimizer = optimizer_class(
-                self._model.net_.parameters(), **self.hyperparam
-                )
+        net_ = self._model.net_
+        if '_groups' is net_.__dict__.keys():
+            parameters = net_.grouped_parameters()
+        else:
+            parameters = net_.parameters()
+        self.optimizer = optimizer_class(parameters, **self.hyperparam)
 
         self.scheduler = None if scheduler is None else scheduler(self.optimizer)
 
