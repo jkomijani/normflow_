@@ -133,7 +133,7 @@ class Fitter:
 
         self.train_history = dict(loss=[], logqp=[], logz=[], ess=[])
 
-        self.train_metadata = dict(n_hits=1, print_time=True)
+        self.train_metadata = dict(n_hits=1)
 
         self.hyperparam = dict(lr=0.001, weight_decay=0.01)
 
@@ -227,11 +227,11 @@ class Fitter:
             if (epoch - 1) % n_hits != 0:
                 continue
             loss, logqp = self.step()
-            self.checkpoint(epoch, logqp)
+            self.checkpoint(epoch, logqp.detach())
             if self.scheduler is not None:
                 self.scheduler.step()
         T2 = time.time()
-        if self.train_metadata['print_time'] and n_epochs > 0:
+        if n_epochs > 0 and self._model.device_handler.rank == 0:
             print(f"({loss.device}) Time = {T2 - T1:.3g} sec.")
 
     def step(self):
@@ -259,15 +259,23 @@ class Fitter:
         return loss, logq - logp
 
     def checkpoint(self, epoch, logqp, n_hits=1):
+
+        rank = self._model.device_handler.rank
         print_stride = self.checkpoint_dict['print_stride']
-        if epoch == 1 or ((epoch + n_hits - 1) % print_stride) == 0:
-            self._append_to_train_history(logqp)
-            self.print_fit_status(epoch + n_hits - 1)
-            if self.checkpoint_dict['display']:
-                self.live_plot_handle.update(self.train_history)
         save_epochs = self.checkpoint_dict['save_epochs']
         save_fname_func = self.checkpoint_dict['save_fname_func']
-        if epoch in save_epochs:
+
+        if epoch == 1 or ((epoch + n_hits - 1) % print_stride) == 0:
+
+            logqp = self._model.device_handler.all_gather_into_tensor(logqp)
+            if rank == 0:
+                self._append_to_train_history(logqp)
+                self.print_fit_status(epoch + n_hits - 1)
+
+                # if self.checkpoint_dict['display']:
+                #     self.live_plot_handle.update(self.train_history)
+
+        if rank == 0 and epoch in save_epochs:
             torch.save(self._model.net_, save_fname_func(epoch))
 
     @staticmethod

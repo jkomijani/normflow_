@@ -84,6 +84,16 @@ class ModelDeviceHandler:
                     )
             raise e
 
+    def all_gather_into_tensor(self, x):
+        if self.nranks == 1:
+            return x
+        else:
+            out_shape = list(x.shape)
+            out_shape[0] *= self.nranks
+            out = torch.zeros(*out_shape, dtype=x.dtype, device=x.device)
+            torch.distributed.all_gather_into_tensor(out, x)
+            return out
+
 
 class DistributedFunc:
 
