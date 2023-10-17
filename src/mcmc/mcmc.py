@@ -97,12 +97,12 @@ class MCMCSampler:
             yield unsqz(y[ind], logq[ind], logp[ind])
 
     @torch.no_grad()
-    def calc_accept_rate(self, n_samples=1024, batch_size=1024, asstr=False,
+    def calc_accept_rate(self, n_samples=1024, batch_size=None,
             n_resamples=10, method='shuffling'):
         """Calculate acceptance rate from logqp = log(q) - log(p)"""
 
         # First, draw (raw) samples
-        if batch_size > n_samples:
+        if batch_size is None or batch_size > n_samples:
             batch_size = n_samples
         n_batches = np.ceil(n_samples/batch_size).astype(int)
         logqp = np.zeros(n_batches * batch_size)
@@ -111,17 +111,17 @@ class MCMCSampler:
             logqp[k*batch_size: (k+1)*batch_size] = seize(logq - logp)
 
         # Now calculate the mean and std of acceptance rate (by shuffling)
-        def calc_rate(logqp):
-            return np.mean(Metropolis.calc_accept_status(logqp))
+        mean, std = self.estimate_accept_rate(logqp)
+        return mean, std
 
-        mean, std = Resampler(method=method).eval(
-                logqp, fn=calc_rate, n_resamples=n_resamples
-                )
-
-        if asstr:
-            return fmt_val_err(mean, std, err_digits=1)
-        else:
-            return mean, std
+    @staticmethod
+    @torch.no_grad()
+    def estimate_accept_rate(logqp, n_resamples=10, method='shuffling'):
+        """Estimate acceptance rate from shuffling logqp"""
+        calc_rate = lambda logqp: np.mean(Metropolis.calc_accept_status(logqp))
+        resampler = Resampler(method)
+        mean, std = resampler.eval(logqp, fn=calc_rate, n_resamples=n_resamples)
+        return mean, std
 
     def log_prob(self, y, action_logz=0):
         """Returns log probability up to an additive constant."""
