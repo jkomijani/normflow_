@@ -131,9 +131,9 @@ class Fitter:
     def __init__(self, model):
         self._model = model
 
-        self.train_history = dict(loss=[], logqp=[], logz=[], ess=[])
+        self.train_batch_size = 1
 
-        self.train_metadata = dict(n_hits=1)
+        self.train_history = dict(loss=[], logqp=[], logz=[], ess=[])
 
         self.hyperparam = dict(lr=0.001, weight_decay=0.01)
 
@@ -152,7 +152,6 @@ class Fitter:
             scheduler=None,
             loss_fn=None,
             hyperparam={},
-            train_metadata={},
             checkpoint_dict={}
             ):
 
@@ -179,14 +178,9 @@ class Fitter:
             Can be used to set hyperparameters like the learning rate and decay
             weights
 
-        train_metadata : dict, optional
-            Can be used to set metadata, e.g. number of hits with one batch of
-            data
-
         checkpoint_dict : dict, optional
             Can be set to control the displayed/printed results
         """
-        self.train_metadata.update(train_metadata)
         self.hyperparam.update(hyperparam)
         self.checkpoint_dict.update(checkpoint_dict)
 
@@ -203,7 +197,7 @@ class Fitter:
 
         return self.train(n_epochs, batch_size)
 
-    def train(self, n_epochs, batch_size, train_metadata={}):
+    def train(self, n_epochs, batch_size):
         """Train the model.
 
         Parameters
@@ -218,16 +212,12 @@ class Fitter:
         but it can be called directly subject to `__call__`
         being called at least once.
         """
-        self.train_metadata.update(train_metadata)
-        self.train_metadata.update(dict(batch_size=batch_size))
+        self.train_batch_size = batch_size
         last_epoch = len(self.train_history["loss"]) + 1
-        n_hits = self.train_metadata['n_hits']
         T1 = time.time()
         for epoch in range(last_epoch, last_epoch + n_epochs):
-            if (epoch - 1) % n_hits != 0:
-                continue
             loss, logqp = self.step()
-            self.checkpoint(epoch, logqp.detach())
+            self.checkpoint(epoch, loss, logqp)
             if self.scheduler is not None:
                 self.scheduler.step()
         T2 = time.time()
@@ -235,42 +225,46 @@ class Fitter:
             print(f"({loss.device}) Time = {T2 - T1:.3g} sec.")
 
     def step(self):
-        """Perform a train step with one batch of inputs"""
+        """Perform a train step with a batch of inputs"""
         net_ = self._model.net_
         prior = self._model.prior
         action = self._model.action
-        batch_size = self.train_metadata['batch_size']
-        n_hits = self.train_metadata['n_hits']
+        batch_size = self.train_batch_size
 
         x, logr = prior.sample_(batch_size)
-        for _ in range(n_hits):
-            y, logJ = net_(x)
-            logq = logr - logJ
-            logp = -action(y)
-            loss = self.loss_fn(logq, logp)
-            self.optimizer.zero_grad()  # clears old gradients from last steps
-            loss.backward()
-            if torch.isnan(loss):
-                print("OOPS: loss is divergent -> no *step* is taken.")
-            else:
-                self.optimizer.step()
-            self.train_history['loss'].append(loss.item())
+        y, logJ = net_(x)
+        logq = logr - logJ
+        logp = -action(y)
+        loss = self.loss_fn(logq, logp)
+        self.optimizer.zero_grad()  # clears old gradients from last steps
+        loss.backward()
+        if torch.isnan(loss):
+            print("OOPS: loss is divergent -> no *step* is taken.")
+        else:
+            self.optimizer.step()
 
         return loss, logq - logp
 
-    def checkpoint(self, epoch, logqp, n_hits=1):
+    def checkpoint(self, epoch, loss, logqp):
 
         rank = self._model.device_handler.rank
+
+        # Always save loss on rank 0
+        if rank == 0:
+            self.train_history['loss'].append(loss.item())
+
+        # For the rest
         print_stride = self.checkpoint_dict['print_stride']
         save_epochs = self.checkpoint_dict['save_epochs']
         save_fname_func = self.checkpoint_dict['save_fname_func']
 
-        if epoch == 1 or ((epoch + n_hits - 1) % print_stride) == 0:
+        if epoch == 1 or (epoch % print_stride == 0):
 
+            logqp = logqp.detach()
             logqp = self._model.device_handler.all_gather_into_tensor(logqp)
             if rank == 0:
                 self._append_to_train_history(logqp)
-                self.print_fit_status(epoch + n_hits - 1)
+                self.print_fit_status(epoch)
 
                 # if self.checkpoint_dict['display']:
                 #     self.live_plot_handle.update(self.train_history)
@@ -384,7 +378,9 @@ def backward_sanitychecker(
     x_hat, log0_hat = net_.backward(y, log0=logJ)
 
     print("Sanity check is OK if following numbers are zero up to round off:")
-    print([torch.sum(torch.abs(x - x_hat)), torch.sum(torch.abs(log0_hat))])
+    print(f"{torch.sum(torch.abs(x - x_hat)).item():g}",
+          f"{torch.sum(torch.abs(log0_hat)).item():g}"
+         )
 
     if return_details:
         return (x, y, x_hat), (logJ, log0_hat)
