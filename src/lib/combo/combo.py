@@ -8,13 +8,7 @@ from ..stats.resampler import Resampler
 
 
 # =============================================================================
-def seize(var):
-    # `var.detach()` returns a new Tensor, detached from the current graph and
-    # never require gradient. `var.cpu()` copies `var` from GPU to CPU.
-    return var.detach().cpu().numpy()
-
-
-def estimate_logz(logqp, n_resamples=20, method='bootstrap'):
+def estimate_logz(logqp, n_resamples=10, method='bootstrap'):
     """Estimate log(z) from logqp = log(q) - log(p * z) by evaluating
 
     Integral p * z = Integral q exp(-logqp)

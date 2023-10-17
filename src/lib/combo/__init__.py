@@ -1,1 +1,1 @@
-from .combo import estimate_logz, fmt_val_err, seize
+from .combo import estimate_logz, fmt_val_err
