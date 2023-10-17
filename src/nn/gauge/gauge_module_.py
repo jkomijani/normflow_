@@ -200,6 +200,8 @@ class SVDGaugeModule_(StapledMatrixModule_):
         to handle matrices as expected in the supper class `MatrixModule_`.
     """
 
+    unbounded_vector_axis = True
+
     def __init__(self, dual_param_net_, param_net_,
             *, mu, nu_list, staples_handle, matrix_handle, label="gauge_"
             ):
