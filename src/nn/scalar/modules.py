@@ -9,7 +9,7 @@ import numpy as np
 
 from ...lib.spline import RQSpline
 from ...lib.linalg import neighbor_mean
-from .conv4d import Conv4d
+from .convNd import Conv4d
 
 
 class AvgNeighborPool(torch.nn.Module):
