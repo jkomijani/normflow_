@@ -142,6 +142,7 @@ class Fitter:
         self.checkpoint_dict = dict(
             display=False,
             print_stride=100,
+            print_batch_size=1024,
             print_extra_func=None,
             save_epochs=[],
             save_fname_func=None
@@ -219,7 +220,7 @@ class Fitter:
         T1 = time.time()
         for epoch in range(last_epoch, last_epoch + n_epochs):
             loss, logqp = self.step()
-            self.checkpoint(epoch, loss, logqp)
+            self.checkpoint(epoch, loss)
             if self.scheduler is not None:
                 self.scheduler.step()
         T2 = time.time()
@@ -247,7 +248,7 @@ class Fitter:
 
         return loss, logq - logp
 
-    def checkpoint(self, epoch, loss, logqp):
+    def checkpoint(self, epoch, loss):
 
         rank = self._model.device_handler.rank
 
@@ -257,16 +258,24 @@ class Fitter:
 
         # For the rest
         print_stride = self.checkpoint_dict['print_stride']
+        print_batch_size = self.checkpoint_dict['print_batch_size']
         save_epochs = self.checkpoint_dict['save_epochs']
         save_fname_func = self.checkpoint_dict['save_fname_func']
 
-        if epoch == 1 or (epoch % print_stride == 0):
+        print_batch_size = print_batch_size // self._model.device_handler.nranks
 
-            logqp = logqp.detach()
-            logqp = self._model.device_handler.all_gather_into_tensor(logqp)
+        if epoch == 1 or epoch == 10 or (epoch % print_stride == 0):
+
+            _, logq, logp = self._model.posterior.sample__(print_batch_size)
+
+            logq = self._model.device_handler.all_gather_into_tensor(logq)
+            logp = self._model.device_handler.all_gather_into_tensor(logp)
+
             if rank == 0:
+                logqp = logq - logp
+                loss_ = self.loss_fn(logq, logp)
                 self._append_to_train_history(logqp)
-                self.print_fit_status(epoch)
+                self.print_fit_status(epoch, loss=loss_)
 
                 # if self.checkpoint_dict['display']:
                 #     self.live_plot_handle.update(self.train_history)
@@ -337,9 +346,12 @@ class Fitter:
         self.train_history['ess'].append(ess)
         self.train_history['accept_rate'].append(accept_rate)
 
-    def print_fit_status(self, epoch):
+    def print_fit_status(self, epoch, loss=None):
         mydict = self.train_history
-        loss = mydict['loss'][-1]
+        if loss is None:
+            loss = mydict['loss'][-1]
+        else:
+            pass  # the printed loss can be different from mydict['loss'][-1]
         logqp_mean, logqp_std = mydict['logqp'][-1]
         logz_mean, logz_std = mydict['logz'][-1]
         accept_rate_mean, accept_rate_std = mydict['accept_rate'][-1]
