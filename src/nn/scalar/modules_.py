@@ -108,7 +108,7 @@ class Logit_(Module_):
 
 
 class Pade11_(Module_):
-    r"""A transformations as a Pade approximant of order 1/1
+    r"""A transformation as a Pade approximant of order 1/1
 
     .. math::
 
@@ -148,7 +148,7 @@ class Pade11_(Module_):
 
 
 class Pade22_(Module_):
-    r"""A transformations as an invertible Pade approximant of order 2/2
+    r"""A transformation as an invertible Pade approximant of order 2/2
 
     .. math::
 
@@ -211,8 +211,8 @@ class Pade22_(Module_):
 class SplineNet_(SplineNet, Module_):
     """Identical to SplineNet, except for taking care of log_jacobian.
 
-    This can be used as a probability distribution convertor for variables with
-    nonzero probability in [0, 1].
+    This can be used as a probability distribution convertor for random
+    variables with nonzero probability in [0, 1].
     """
 
     def forward(self, x, log0=0):
@@ -237,7 +237,7 @@ class SplineNet_(SplineNet, Module_):
 
 
 class UnityDistConvertor_(SplineNet_):
-    """As a PDF convertor, with variable in [0, 1]."""
+    """As a PDF convertor for random variables in range [0, 1]."""
 
     def __init__(self, knots_len, symmetric=False, **kwargs):
 
@@ -250,7 +250,7 @@ class UnityDistConvertor_(SplineNet_):
 
 
 class PhaseDistConvertor_(SplineNet_):
-    """As a PDF convertor, with variable in [-pi, pi]."""
+    """As a PDF convertor for random variables in range [-pi, pi]."""
 
     def __init__(self, knots_len, symmetric=False, label='phase-dc_', **kwargs):
 
@@ -265,7 +265,8 @@ class PhaseDistConvertor_(SplineNet_):
 
 
 class DistConvertor_(ModuleList_):
-    """As a PDF convertor, with variable in [-\infty, \infty].
+    """As a PDF convertor for real random variables (from minus to plus
+    infinity).
 
     Steps: pass through Expit_, SplineNet_, and Logit_
     """
@@ -297,24 +298,20 @@ class DistConvertor_(ModuleList_):
         super().__init__(nets_)
         self.label = label
 
-    def cdf_mapper(self, cdf):
-        """Useful for mapping the CDF of inputs to the CDF of outputs."""
-        return self.get_spline_(cdf)  # cdf \in [0, 1].
-
     @property
-    def get_spline_(self):
+    def spline_layer_(self):
         for net_ in self:
             if net_.label == 'spline_':
                 return net_
 
     @property
-    def get_scale_(self):
+    def scale_layer_(self):
         for net_ in self:
             if net_.label == 'scale_':
                 return net_
 
     @property
-    def get_sgnbias_(self):
+    def sgnbias_layer_(self):
         for net_ in self:
             if net_.label == 'sgnbias_':
                 return net_
