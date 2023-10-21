@@ -238,6 +238,7 @@ class LinearAct(torch.nn.Sequential):
             acts = [None],
             pre_act = None,
             final_bias = False,  # e.g., can be used with 'abs' activation
+            features_axis = -1,
             **linear_kwargs  # all other kwargs to pass to torch.nn.Linear
             ):
 
@@ -260,10 +261,20 @@ class LinearAct(torch.nn.Sequential):
         # save all inputs so that the can be used later for transfer learning
         linear_kwargs.update(
                 dict(in_features=in_features, out_features=out_features,
-                     hidden_sizes=hidden_sizes, acts=acts, pre_act=pre_act
+                     hidden_sizes=hidden_sizes, acts=acts, pre_act=pre_act,
+                     final_bias=final_bias, features_axis=features_axis
                      )
                 )
         self.linear_kwargs = linear_kwargs
+
+    def forward(self, x):
+        features_axis = self.linear_kwargs['features_axis']
+        if features_axis == -1:
+            return super().forward(x)
+        else:
+            x = torch.movedim(x, features_axis, -1)
+            x = super().forward(x)
+            return torch.movedim(x, -1, features_axis)
 
     def set_param2zero(self):
         for net in self:
