@@ -14,24 +14,30 @@ from .mask import EvenOddMask, AlongAxesEvenOddMask
 
 
 class DoubleMask(torch.nn.Module):
+    """Consistes of two masks: the first one makes a part of the data
+    invisible, and the second one acts only on the visible data.
 
-    def __init__(self, *, passive_maker_mask, frozen_maker_mask):
+    The invisible data will be saved and will be used once the `cat` method is
+    called.
+    """
+
+    def __init__(self, *, invisibility_mask, outer_mask):
         super().__init__()
-        self.passive_maker_mask = passive_maker_mask
-        self.frozen_maker_mask = frozen_maker_mask
+        self.invisibility_mask = invisibility_mask
+        self.outer_mask = outer_mask
 
     def split(self, x):
-        x, self._x_passive = self.passive_maker_mask.split(x)
-        return self.frozen_maker_mask.split(x)
+        x, self._x_invisible = self.invisibility_mask.split(x)
+        return self.outer_mask.split(x)
 
     def cat(self, x_0, x_1):
-        x = self.frozen_maker_mask.cat(x_0, x_1)
-        return self.passive_maker_mask.cat(x, self._x_passive)
+        x = self.outer_mask.cat(x_0, x_1)
+        return self.invisibility_mask.cat(x, self._x_invisible)
 
     def purify(self, x_chnl, channel, **kwargs):
-        return self.passive_maker_mask.purify(
-                self.frozen_maker_mask.purify(x_chnl, channel, **kwargs),
-                0  # 1, which corresponds to self._x_passive is out of access
+        return self.invisibility_mask.purify(
+                self.outer_mask.purify(x_chnl, channel, **kwargs),
+                0  # 1, which corresponds to self._x_invisible is out of access
                 )
 
 class GaugeLinksDoubleMask(DoubleMask):
@@ -41,4 +47,4 @@ class GaugeLinksDoubleMask(DoubleMask):
         # be modified accordingly.
         mask0 = EvenOddMask(shape=mask_shape, parity=parity)
         mask1 = AlongAxesEvenOddMask(shape=mask_shape, mu=mu)
-        super().__init__(passive_maker_mask=mask0, frozen_maker_mask=mask1)
+        super().__init__(invisibility_mask=mask0, outer_mask=mask1)
