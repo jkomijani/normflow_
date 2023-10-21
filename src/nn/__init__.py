@@ -1,6 +1,6 @@
 from ._core import Module_, ModuleList_
 from ._core import MultiChannelModule_, MultiOutChannelModule_
-from ._core import MaskWrapperModule_
+from ._core import InvisibilityMaskWrapperModule_
 
 from .scalar.modules import ConvAct, LinearAct
 from .scalar.modules_ import DistConvertor_, Identity_, Clone_

@@ -196,11 +196,18 @@ class MultiOutChannelModule_(MultiChannelModule_):
 
 
 # =============================================================================
-class MaskWrapperModule_(Module_):
-    """Can be used as a wrapper with a mask to modify other networks.
+class InvisibilityMaskWrapperModule_(Module_):
+    """A wrapper that makes a part of the input invisible before passing it the
+    underlying network (`net_`). 
 
-    Note that the original `net_` should not have any other nested net_ that
-    keeps track of Jacobian of transformation.
+    Parameters
+    ----------
+    net_ : instance of Module_
+        should not have any other nested net_ that keeps track of Jacobian
+        of transformation.
+
+    mask : instance of Mask
+        for partitioning the input data to visible and invisible parts.
     """
 
     def __init__(self, net_, *, mask):
@@ -210,15 +217,15 @@ class MaskWrapperModule_(Module_):
         self.net_.propagate_density = True  # does not sum the density
 
     def forward(self, x, log0=0):
-        x_active, x_frozen = self.mask.split(x)
-        x_active, logJ_density = self.net_.forward(x_active)
-        x_active = self.mask.purify(x_active, channel=0)
+        x_v, x_invisible = self.mask.split(x)  # x_v: x_visible
+        x_v, logJ_density = self.net_.forward(x_v)
+        x_v = self.mask.purify(x_v, channel=0)
         logJ = self.sum_density(self.mask.purify(logJ_density, channel=0))
-        return self.mask.cat(x_active, x_frozen), log0 + logJ
+        return self.mask.cat(x_v, x_invisible), log0 + logJ
 
     def backward(self, x, log0=0):
-        x_active, x_frozen = self.mask.split(x)
-        x_active, logJ_density = self.net_.backward(x_active)
-        x_active = self.mask.purify(x_active, channel=0)
+        x_v, x_invisible = self.mask.split(x)  # x_v: x_visible
+        x_v, logJ_density = self.net_.backward(x_v)
+        x_v = self.mask.purify(x_v, channel=0)
         logJ = self.sum_density(self.mask.purify(logJ_density, channel=0))
-        return self.mask.cat(x_active, x_frozen), log0 + logJ
+        return self.mask.cat(x_v, x_invisible), log0 + logJ
