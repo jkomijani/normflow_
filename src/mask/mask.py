@@ -109,16 +109,16 @@ class ListSplitMask:
         return x_chnl
 
 
-class UnbindStackMask:
+class ChunkCatMask:
 
-    def __init__(self, unbind_axis=1):
-        self.unbind_axis = unbind_axis
+    def __init__(self, chunk_axis=1):
+        self.chunk_axis = chunk_axis
 
     def split(self, x):
-        return list(torch.unbind(x, self.unbind_axis))
+        return torch.chunk(x, 2, self.chunk_axis)
 
     def cat(self, x0, x1):
-        return torch.stack([x0, x1], dim=self.unbind_axis)
+        return torch.cat([x0, x1], dim=self.chunk_axis)
 
     @staticmethod
     def purify(x_chnl, *args, **kwargs):
