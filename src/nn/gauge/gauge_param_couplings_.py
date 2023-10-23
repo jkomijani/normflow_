@@ -12,8 +12,7 @@ import numpy as np
 from .._core import Module_
 from ..scalar.modules_ import Logit_, Expit_
 from ..scalar.couplings_ import AffineCoupling_, Coupling_
-
-pi = np.pi
+from ..scalar.couplings_ import RQSplineCoupling_, MultiRQSplineCoupling_
 
 
 # =============================================================================
@@ -207,6 +206,51 @@ class Pade22DualCoupling_(Module_):
         x_active, logJ = invpade22_(x_active)
 
         return self.mask.cat(x_active, x_invisible), log0 + logJ
+
+
+# =============================================================================
+class SU3RQSplineCoupling_(MultiRQSplineCoupling_):
+    """Like `MultiRQSplineCoupling_`, but assuming the input has a channel axis."""
+
+    def __init__(self, nets,
+            xlims=[(0, 1), (0, 1)],
+            ylims=[(0, 1), (0, 1)],
+            **kwargs
+            ):
+
+        super().__init__(nets, xlims=xlims, ylims=ylims, **kwargs)
+
+    def preprocess_fz(self, x):  # fz: frozen
+        return x
+
+
+# =============================================================================
+class SU2RQSplineCoupling_(RQSplineCoupling_):
+    """Like `RQSplineCoupling_`, but assuming the input has a channel axis."""
+
+    def preprocess_fz(self, x):  # fz: frozen
+        return x
+
+    def preprocess(self, x):
+        return x
+
+    def postprocess(self, x):
+        return x
+
+
+# =============================================================================
+class U1RQSplineCoupling_(RQSplineCoupling_):
+    """Like `SU2RQSplineCoupling_` but different preprocessing."""
+
+    def preprocess_fz(self, x):  # fz: frozen
+        x = x * (2*np.pi)
+        return torch.cat((torch.cos(x), torch.sin(x)), dim=self.channels_axis)
+
+    def preprocess(self, x):
+        return x
+
+    def postprocess(self, x):
+        return x
 
 
 # =============================================================================
