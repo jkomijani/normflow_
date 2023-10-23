@@ -23,9 +23,14 @@ from .gauge.planar_gauge_module_ import PlanarGaugeModule_, PlanarGaugeModuleLis
 
 from .gauge.gauge_module_ import GaugeModule_, SVDGaugeModule_, GaugeModuleList_
 
-from .gauge.gauge_param_couplings_ import Pade11Coupling_, Pade11DualCoupling_
-from .gauge.gauge_param_couplings_ import Pade22Coupling_, Pade22DualCoupling_
+from .gauge.gauge_param_couplings_ import Pade11Coupling_
+from .gauge.gauge_param_couplings_ import Pade22Coupling_
 from .gauge.gauge_param_couplings_ import SU3RQSplineCoupling_
 from .gauge.gauge_param_couplings_ import SU2RQSplineCoupling_
 from .gauge.gauge_param_couplings_ import U1RQSplineCoupling_
 from .gauge.gauge_param_couplings_ import SUnParamAffineCoupling_
+
+from .gauge.gauge_param_dual_couplings_ import  Pade11DualCoupling_
+from .gauge.gauge_param_dual_couplings_ import  Pade22DualCoupling_
+from .gauge.gauge_param_dual_couplings_ import  SU2RQSplineDualCoupling_
+from .gauge.gauge_param_dual_couplings_ import  SU3RQSplineDualCoupling_
