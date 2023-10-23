@@ -38,8 +38,20 @@ class GaugeModuleList_(ModuleList_):
             return super().backward(x.clone(), log0)
 
     def hack(self, x, log0=0):
-        x = list(torch.unbind(x, 1)) if self.unbind_vector_axis else x.clone()
-        return super().hack(x, log0)
+        """Similar to the forward method, except that returns the output of
+        middle blocks too; useful for examining effects of each block.
+        """
+        stack = [(x, log0)]
+
+        if self.unbind_vector_axis:
+            for net_ in self:
+                x = list(torch.unbind(x, self.vector_axis))
+                x, log0 = net_(x, log0)
+                x = torch.stack(x, dim=self.vector_axis)
+                stack.append([x, log0])
+            return stack
+        else:
+            return None
 
 
 # =============================================================================
