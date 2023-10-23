@@ -119,8 +119,8 @@ class Pade11DualCoupling_(Module_):
         self.mask = mask
 
     def forward(self, x, s, log0=0):
-        x_active, x_passive = self.mask.split(x)
-        s_frozen, s_passive = self.mask.split(s)
+        x_active, x_invisible = self.mask.split(x)
+        s_frozen, s_invisible = self.mask.split(s)
 
         t = self.net(s_frozen)
         t = self.mask.purify(t, channel=0)
@@ -129,11 +129,11 @@ class Pade11DualCoupling_(Module_):
         x_active = x_active / denom
         logJ = self.sum_density(t - 2 * torch.log(denom))
 
-        return self.mask.cat(x_active, x_passive), log0 + logJ
+        return self.mask.cat(x_active, x_invisible), log0 + logJ
 
     def backward(self, x, s, log0=0):
-        x_active, x_passive = self.mask.split(x)
-        s_frozen, s_passive = self.mask.split(s)
+        x_active, x_invisible = self.mask.split(x)
+        s_frozen, s_invisible = self.mask.split(s)
 
         t = self.net(s_frozen)
         t = self.mask.purify(t, channel=0)
@@ -142,7 +142,7 @@ class Pade11DualCoupling_(Module_):
         x_active = x_active / denom
         logJ = self.sum_density(-t - 2 * torch.log(denom))
 
-        return self.mask.cat(x_active, x_passive), log0 + logJ
+        return self.mask.cat(x_active, x_invisible), log0 + logJ
 
 
 # =============================================================================
@@ -163,8 +163,8 @@ class Pade22DualCoupling_(Module_):
         self.channels_axis = channels_axis
 
     def forward(self, x, s, log0=0):
-        x_active, x_passive = self.mask.split(x)
-        s_frozen, s_passive = self.mask.split(s)
+        x_active, x_invisible = self.mask.split(x)
+        s_frozen, s_invisible = self.mask.split(s)
 
         t = self.net(s_frozen)
         t = self.mask.purify(t, channel=0)
@@ -178,11 +178,11 @@ class Pade22DualCoupling_(Module_):
 
         x_active, logJ = pade22_(x_active)
 
-        return self.mask.cat(x_active, x_passive), log0 + logJ
+        return self.mask.cat(x_active, x_invisible), log0 + logJ
 
     def backward(self, x, s, log0=0):
-        x_active, x_passive = self.mask.split(x)
-        s_frozen, s_passive = self.mask.split(s)
+        x_active, x_invisible = self.mask.split(x)
+        s_frozen, s_invisible = self.mask.split(s)
 
         t = self.net(s_frozen)
         t = self.mask.purify(t, channel=0)
@@ -206,7 +206,7 @@ class Pade22DualCoupling_(Module_):
 
         x_active, logJ = invpade22_(x_active)
 
-        return self.mask.cat(x_active, x_passive), log0 + logJ
+        return self.mask.cat(x_active, x_invisible), log0 + logJ
 
 
 # =============================================================================
