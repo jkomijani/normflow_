@@ -203,11 +203,12 @@ class SVDGaugeModule_(StapledMatrixModule_):
     unbounded_vector_axis = True
 
     def __init__(self, dual_param_net_, param_net_,
-            *, mu, nu_list, staples_handle, matrix_handle, label="gauge_"
+            *, mu, nu_list, staples_handle, matrix_handle, label="gauge_",
+            **kwargs
             ):
         super().__init__(
-                dual_param_net_, param_net_, matrix_handle=matrix_handle
-                )
+            dual_param_net_, param_net_, matrix_handle=matrix_handle, **kwargs
+            )
         self.mu = mu
         self.nu_list = nu_list
         self.staples_handle = staples_handle
