@@ -33,8 +33,7 @@ class GaugeAction:
         for mu in range(1, self.ndim):
             for nu in range(mu):
                 action += torch.sum(self.calc_plaq(cfgs, mu=mu, nu=nu), dim=dim)
-        action *= (-self.beta / self.nc)
-        return action
+        return -self.beta * action
 
     def action_density(self, cfgs):
         """Returns action density corresponding to input configurations."""
@@ -43,9 +42,7 @@ class GaugeAction:
         for mu in range(1, self.ndim):
             for nu in range(mu):
                 action_density += self.calc_plaq(cfgs, mu=mu, nu=nu)
-        nc = int(cfgs.shape[-1])  # number of colors
-        action_density *= (-self.beta / nc)
-        return action_density
+        return -self.beta * action_density
 
     def calc_plaq(self, cfgs, *, mu, nu, real=True):
         x_mu = cfgs[:, mu]
@@ -62,7 +59,7 @@ class GaugeAction:
     def plaq_rule(a, b, c, d):
         mul = torch.matmul
         plaq = mul(mul(a, b), mul(d, c).adjoint())
-        return calc_trace(plaq)
+        return calc_reduced_trace(plaq)
 
     def log_prob(self, x, action_logz=0):
         """Returns log probability up to an additive constant."""
