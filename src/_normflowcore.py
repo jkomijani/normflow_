@@ -134,7 +134,7 @@ class Fitter:
         self.train_batch_size = 1
 
         self.train_history = dict(
-                loss=[], logqp=[], logz=[], ess=[], accept_rate=[]
+                loss=[], logqp=[], logz=[], ess=[], rho=[], accept_rate=[]
                 )
 
         self.hyperparam = dict(lr=0.001, weight_decay=0.01)
@@ -272,9 +272,8 @@ class Fitter:
             logp = self._model.device_handler.all_gather_into_tensor(logp)
 
             if rank == 0:
-                logqp = logq - logp
                 loss_ = self.loss_fn(logq, logp)
-                self._append_to_train_history(logqp)
+                self._append_to_train_history(logq, logp)
                 self.print_fit_status(epoch, loss=loss_)
 
                 # if self.checkpoint_dict['display']:
@@ -291,6 +290,10 @@ class Fitter:
     @staticmethod
     def calc_kl_var(logq, logp):
         return (logq - logp).var()
+
+    @staticmethod
+    def calc_corrcoef(logq, logp):
+        return torch.corrcoef(torch.stack([logq, logp]))[0, 1]
 
     @staticmethod
     def calc_direct_kl_mean(logq, logp):
@@ -322,6 +325,12 @@ class Fitter:
         return logqp.mean() + logz
 
     @staticmethod
+    def calc_least_squares(logq, logp):
+        logqp = logq - logp
+        logz = torch.logsumexp(-logqp, dim=0) - np.log(logp.shape[0])
+        return torch.mean((logqp + logz)**2)
+
+    @staticmethod
     def calc_minus_logz(logq, logp):
         logz = torch.logsumexp(logp - logq, dim=0) - np.log(logp.shape[0])
         return -logz
@@ -334,16 +343,21 @@ class Fitter:
         ess = torch.exp(log_ess) / len(logqp)  # normalized
         return ess
 
+    def calc_minus_ess(self, logq, logp):
+        return -self.calc_ess(logq, logp)
+
     @torch.no_grad()
-    def _append_to_train_history(self, logqp):
-        # logqp = logq - logp;  more precisely, logqp = log(q) - log(p * z)
+    def _append_to_train_history(self, logq, logp):
+        logqp = logq - logp
         logz = estimate_logz(logqp, method='jackknife')  # returns (mean, std)
         accept_rate = self._model.mcmc.estimate_accept_rate(logqp)
         ess = self.calc_ess(logqp, 0)
+        rho = self.calc_corrcoef(logq, logp)
         logqp = (logqp.mean().item(), logqp.std().item())
         self.train_history['logqp'].append(logqp)
         self.train_history['logz'].append(logz)
         self.train_history['ess'].append(ess)
+        self.train_history['rho'].append(rho)
         self.train_history['accept_rate'].append(accept_rate)
 
     def print_fit_status(self, epoch, loss=None):
@@ -358,14 +372,15 @@ class Fitter:
         # We now incorporate the effect of estimated log(z) to mean of log(q/p)
         adjusted_logqp_mean = logqp_mean + logz_mean
         ess = mydict['ess'][-1]
+        rho = mydict['rho'][-1]
 
         if epoch == 1:
             print(f"\n>>> Training progress ({ess.device}) <<<\n")
             print("Note: log(q/p) is esitamted with normalized p; " \
                   + "mean & error are obtained from samples in a batch\n")
 
-        str_ = f"Epoch: {epoch} | loss: {loss:g} | ess: {ess:g} | "
-        str_ += "log(z): {0} | log(q/p): {1} | accept_rate: {2}".format(
+        str_ = f"Epoch: {epoch} | loss: {loss:g} | ess: {ess:g} | rho: {rho:g}"
+        str_ += " | log(z): {0} | log(q/p): {1} | accept_rate: {2}".format(
                 fmt_val_err(logz_mean, logz_std, err_digits=2),
                 fmt_val_err(adjusted_logqp_mean, logqp_std, err_digits=2),
                 fmt_val_err(accept_rate_mean, accept_rate_std, err_digits=1),
