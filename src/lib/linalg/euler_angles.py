@@ -3,6 +3,7 @@
 """This module has extensions to the linalg packages in torch or numpy."""
 
 import torch
+import numpy as np
 
 
 # =============================================================================
@@ -17,10 +18,14 @@ def su2_to_euler_angles(matrix, alt_param=False):
     or True:
 
         >>> [phi, theta, psi] = su2_to_euler_angles(matrix)
-        >>> [sum_, abs00, diff] = su2_to_euler_angles(matrix, alt_param=True)
+        >>> [abs00, s, d] = su2_to_euler_angles(matrix, alt_param=True)
 
-    where sum_ is phi + psi, diff is phi - psi, and abs00 is cos(theta/2),
-    which is always positive.
+    where
+        >>> s = (phi + psi) / (2 np.pi) + 0.5  # sum
+        >>> d = (phi - psi) / (2 np.pi) + 0.5  # diff
+        >>> abs00 = cos(theta / 2)
+
+    where all vary between zero and unity.
 
     Parameters
     ----------
@@ -36,7 +41,9 @@ def su2_to_euler_angles(matrix, alt_param=False):
     angle01 = torch.angle(-1j * matrix[..., 0, 1])  # \in [-pi, pi]
 
     if alt_param:
-        return [angle00, abs00, angle01]
+        s = angle00 / (2 * np.pi) + 0.5
+        d = angle01 / (2 * np.pi) + 0.5
+        return [abs00, s, d]
     else:
         phi = angle00 + angle01  # \in (-2 pi, 2 pi]
         psi = angle00 - angle01  # \in (-2 pi, 2 pi]
@@ -56,15 +63,17 @@ def euler_angles_to_su2(phi, theta, psi, alt_param=False):
         Euler decomposed angles (if alt_param is False).
 
     alt_param : bool (optional)
-        if True, [phi, theta, psi] should be interpreted as
-        [(phi+psi)/2, cos(theta/2), (phi - psi)/2] (default is False).
+        if True, [phi, theta, psi] should be interpreted as [abs00, d, s]
+        (default is False).
     """
     if alt_param:
-        angle00, abs00, angle01 = phi, theta, psi
+        abs00, s, d = phi, theta, psi
+        angle00 = (2 * np.pi) * (s + 0.5)
+        angle01 = (2 * np.pi) * (d + 0.5)
     else:
+        abs00 = torch.cos(theta / 2)
         angle00 = (phi + psi) / 2
         angle01 = (phi - psi) / 2
-        abs00 = torch.cos(theta / 2)
 
     m00 = abs00 * torch.exp(1j * angle00)
     m01 = 1j * torch.sqrt(1 - abs00**2) * torch.exp(1j * angle01)
