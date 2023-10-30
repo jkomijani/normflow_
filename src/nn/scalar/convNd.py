@@ -50,7 +50,6 @@ class ConvNd(torch.nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
-        self.bias = bias
 
         kernel_size_lower_dim = kernel_size[1:]
         out_channels_lower_dim = out_channels * kernel_size[0]
@@ -114,14 +113,15 @@ class ConvNd(torch.nn.Module):
         big_out = torch.empty_like(out_lower_dim)
 
         for i in range(kernel_size_0):
-            big_out[:, :, :, i] = out_lower_dim[:, :, :, i].roll(1 - i, dims=1)
+            j = (kernel_size_0 - 1) // 2 - i
+            big_out[:, :, :, i] = out_lower_dim[:, :, :, i].roll(j, dims=1)
 
         # sum over the remaining kernel dimension & undo swaping dims 1&2
         out = torch.sum(big_out, dim=3).movedim(2, 1).contiguous()
 
         if self.bias is not None:
-            bias_new_shape = (1, self.out_channels, *[1]*(len(out.shape) - 2))
-            out = out + self.bias.reshape(bias_new_shape)
+            bias_new_shape = (1, self.out_channels, *[1]*(len(out.shape[2:])))
+            out = out + self.bias.reshape(*bias_new_shape)
 
         return out
 
@@ -153,7 +153,7 @@ class Conv4d(ConvNd):
 def sanity_check(
         conv_ndim=3, sizes=[4, 6, 3], dtype=torch.float64, device=None
         ):
-    """For 2 and 2 dimensional CNN compares ConvNd with torch.nn.Conv2d & 3d"""
+    """For 2 and 3 dimensional CNN compares ConvNd with torch.nn.Conv2d & 3d"""
     # sizes = [in_channels, out_channels, kernel_size]
     if conv_ndim == 2:
         CNN = torch.nn.Conv2d
