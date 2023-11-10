@@ -22,6 +22,7 @@ from .matrix.stapled_matrix_module_ import StapledMatrixModule_
 from .gauge.planar_gauge_module_ import PlanarGaugeModule_, PlanarGaugeModuleList_
 
 from .gauge.gauge_module_ import GaugeModule_, SVDGaugeModule_, GaugeModuleList_
+from .gauge.gauge_module_  import PolyakovGaugeModule_
 
 from .gauge.gauge_param_couplings_ import Pade11Coupling_
 from .gauge.gauge_param_couplings_ import Pade22Coupling_

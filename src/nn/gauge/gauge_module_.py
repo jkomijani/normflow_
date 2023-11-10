@@ -328,3 +328,131 @@ class SVDGaugeModule_(StapledMatrixModule_):
                 matrix_handle=self.matrix_handle,
                 label=self.label
                 )
+
+
+# =============================================================================
+class PolyakovGaugeModule_(MatrixModule_):
+
+    unbounded_vector_axis = True
+
+    def __init__(self, param_net_,
+            *, mu, nu_list, staples_handle, matrix_handle, parity
+            ):
+        super().__init__(param_net_, matrix_handle=matrix_handle)
+        self.mu = mu
+        self.nu_list = nu_list
+        self.staples_handle = staples_handle
+        self.parity = parity
+
+    def forward(self, x, log0=0):
+
+        mu, x_mu = self.mu, x[self.mu]
+        loop_dim = 1 + mu  # 1 is for the batch axis
+
+        polyakov_loop = matrix_product(torch.unbind(x_mu, dim = loop_dim))
+
+        staples = self.staples_handle.calc_staples(
+                x, mu=mu, nu_list=self.nu_list
+                )
+
+        polyakov_staples = matrix_product(
+                torch.unbind(staples, dim = loop_dim), right_product=False
+                )
+
+        # slink: stapled link
+        sploop, svd_ = self.staples_handle.staple(
+                polyakov_loop, staples=polyakov_staples
+                )
+
+        rotation, logJ = super().forward(sploop, reduce_=True)
+        rotation = select_embed(x_mu.shape, rotation, loop_dim, 0)
+        svd_.sU = select_embed(x_mu.shape, svd_.sU, loop_dim, 0)
+        svd_.Vh = select_embed(x_mu.shape, svd_.Vh, loop_dim, 0)
+
+        x[mu] = self.staples_handle.push2link(
+                x_mu, slink_rotation=rotation, svd_=svd_
+                )
+
+        return x, log0 + logJ
+
+    def backward(self, x, log0=0):
+
+        mu, x_mu = self.mu, x[self.mu]
+        loop_dim = 1 + mu  # 1 is for the batch axis
+
+        polyakov_loop = matrix_product(torch.unbind(x_mu, dim = loop_dim))
+
+        staples = self.staples_handle.calc_staples(
+                x, mu=self.mu, nu_list=self.nu_list
+                )
+
+        polyakov_staples = matrix_product(
+                torch.unbind(staples, dim = loop_dim), right_product=False
+                )
+
+        # slink: stapled link
+        sploop, svd_ = self.staples_handle.staple(
+                polyakov_loop, staples=polyakov_staples
+                )
+
+        rotation, logJ = super().backward(sploop, reduce_=True)
+        rotation = select_embed(x_mu.shape, rotation, loop_dim, 0)
+        svd_.sU = select_embed(x_mu.shape, svd_.sU, loop_dim, 0)
+        svd_.Vh = select_embed(x_mu.shape, svd_.Vh, loop_dim, 0)
+
+        x[mu] = self.staples_handle.push2link(
+                x_mu, slink_rotation=rotation, svd_=svd_
+                )
+
+        return x, log0 + logJ
+
+    def _forward(self, x, log0=0):
+
+        mu, x_mu = self.mu, x[self.mu]
+        dim = 1 + mu  # 1 is for the batch axis
+
+        polyakov_loop = matrix_product(torch.unbind(x_mu, dim = dim))
+        rotation, logJ = super().forward(polyakov_loop, reduce_=True)
+        rotation = select_embed(x_mu.shape, rotation, dim, 0)
+
+        x[mu] = rotation @ x_mu
+        return x, log0 + logJ
+
+    def _backward(self, x, log0=0):
+
+        mu, x_mu = self.mu, x[self.mu]
+        dim = 1 + mu  # 1 is for the batch axis
+
+        polyakov_loop = matrix_product(torch.unbind(x_mu, dim = dim))
+        rotation, logJ = super().backward(polyakov_loop, reduce_=True)
+        rotation = select_embed(x_mu.shape, rotation, dim, 0)
+
+        x[mu] = rotation @ x_mu
+        return x, log0 + logJ
+
+
+# =============================================================================
+def select_embed(shape, src, dim, index):
+    """A function introduced as a replacement of `torch.select_scatter` that
+    does not support automatic differentiation for outputs with complex dtype.
+    """
+    out = torch.zeros(shape, dtype=src.dtype, device=src.device)
+    for ell in range(shape[-2]):
+        out[..., ell, ell] = 1
+    out[[slice(None)] * dim + [index]] = src
+    return out
+
+
+def matrix_product(tuple_, right_product=True):
+    """Return the matrix product of the matrices in the input tuple."""
+    if len(tuple_) == 0:
+        return 1
+    else:
+        product = tuple_[0]
+
+    for x in tuple_[1:]:
+        if right_product:
+            product = product @ x
+        else:
+            product = x @ product
+    return product
