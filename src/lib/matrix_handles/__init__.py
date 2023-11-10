@@ -5,4 +5,4 @@ from .matrix_handle import SUnMatrixParametrizer, U1Parametrizer
 from .matrix_handle import SU2MatrixParametrizer, SU3MatrixParametrizer
 
 from .staples_handle import WilsonStaplesHandle, U1WilsonStaplesHandle
-from . import euler_handle
+from .euler_handle import SU2MatrixEulerParametrizer
