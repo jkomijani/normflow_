@@ -40,6 +40,7 @@ class DoubleMask(torch.nn.Module):
                 0  # 1, which corresponds to self._x_invisible is out of access
                 )
 
+
 class GaugeLinksDoubleMask(DoubleMask):
 
     def __init__(self, *, shape, parity, mu, channels_exist=True):
