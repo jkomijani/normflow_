@@ -7,7 +7,7 @@ import numpy as np
 
 
 # =============================================================================
-def su2_to_euler_angles(matrix, alt_param=False):
+def su2_to_euler_angles(matrix, alt_param=False, channel_axis=-1):
     r"""Perform Euler decomposition of SU(2) matrices and return the angles.
 
     Here we follow [Ref](https://ncatlab.org/nlab/show/Euler+angle);
@@ -17,8 +17,8 @@ def su2_to_euler_angles(matrix, alt_param=False):
     This function can be called with `alt_param` option set to False (default)
     or True:
 
-        >>> [phi, theta, psi] = su2_to_euler_angles(matrix)
-        >>> [abs00, s, d] = su2_to_euler_angles(matrix, alt_param=True)
+        >>> (phi, theta, psi) = su2_to_euler_angles(matrix)
+        >>> (abs00, s, d) = su2_to_euler_angles(matrix, alt_param=True)
 
     where
         >>> s = (phi + psi) / (2 np.pi) + 0.5  # sum
@@ -35,6 +35,10 @@ def su2_to_euler_angles(matrix, alt_param=False):
     alt_param : bool (optional)
         if True, returns an alt_param parametrization as explained above
         (default is False).
+
+    channel_axis : bool (optional)
+        if integer, specifies the channel axis in which the Euler angles (or
+        their alternative parametrizations) are listed (default is -1).
     """
     abs00 = torch.abs(matrix[..., 0, 0])  # \in [0, 1]
     angle00 = torch.angle(matrix[..., 0, 0])  # \in (-pi, pi]
@@ -43,29 +47,39 @@ def su2_to_euler_angles(matrix, alt_param=False):
     if alt_param:
         s = angle00 / (2 * np.pi) + 0.5
         d = angle01 / (2 * np.pi) + 0.5
-        return [abs00, s, d]
+        out = (abs00, s, d)
     else:
         phi = angle00 + angle01  # \in (-2 pi, 2 pi]
         psi = angle00 - angle01  # \in (-2 pi, 2 pi]
         theta = 2 * torch.acos(abs00)
-        return [phi, theta, psi]
+        out = (phi, theta, psi)
+
+    if isinstance(channel_axis, int):
+        return torch.stack(out, channel_axis)
+    else:
+        return out
 
 
 # =============================================================================
-def euler_angles_to_su2(phi, theta, psi, alt_param=False):
+def euler_angles_to_su2(phi_theta_psi, alt_param=False, channel_axis=-1):
     """Performing the opposite of su2_to_euler_angles.
 
     For details see su2_to_euler_angles.
 
     Parameters
     ----------
-    phi, theta, psi : tensors
+    phi_theta_psi : tensor or a tuple of tensors
         Euler decomposed angles (if alt_param is False).
 
     alt_param : bool (optional)
-        if True, [phi, theta, psi] should be interpreted as [abs00, d, s]
+        if True, (phi, theta, psi) should be interpreted as (abs00, d, s)
         (default is False).
     """
+    if isinstance(channel_axis, int):
+        phi, theta, psi = torch.unbind(phi_theta_psi, channel_axis)
+    else:
+        phi, theta, psi = phi_theta_psi
+
     if alt_param:
         abs00, s, d = phi, theta, psi
         angle00 = (2 * np.pi) * (s + 0.5)
