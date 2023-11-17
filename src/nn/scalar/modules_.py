@@ -42,24 +42,31 @@ class Clone_(Module_):
 
 
 class ScaleNet_(Module_):
-    """Scales the input by a constant factor available as self.logw"""
+    """Scales the input by a positive weight."""
+    # TODO: one can consider different weights for different channels
+
+    softplus = torch.nn.Softplus(beta=np.log(2))
 
     def __init__(self, label='scale_'):
         super().__init__(label=label)
-        self.logw = torch.nn.Parameter(torch.zeros(1))
+        self._weight = torch.nn.Parameter(torch.zeros(1))
+
+    @property
+    def weight(self):
+        return self.softplus(self._weight)
 
     def forward(self, x, log0=0):
-        return x * torch.exp(self.logw), log0 + self.log_jacobian(x.shape)
+        return x * self.weight, log0 + self.log_jacobian(x.shape)
 
     def backward(self, x, log0=0):
-        return x / torch.exp(self.logw), log0 - self.log_jacobian(x.shape)
+        return x / self.weight, log0 - self.log_jacobian(x.shape)
 
     def log_jacobian(self, x_shape):
         if Module_.propagate_density:
-            return self.logw * torch.ones(x_shape)
+            return torch.log(self.weight) * torch.ones(x_shape)
         else:
-            logwscaled = self.logw * np.product(x_shape[1:])
-            return logwscaled * torch.ones(x_shape[0], device=self.logw.device)
+            logwscaled = torch.log(self.weight) * np.product(x_shape[1:])
+            return logwscaled * torch.ones(x_shape[0], device=self._weight.device)
 
 
 class Tanh_(Module_):
@@ -87,7 +94,7 @@ class Expit_(Module_):
     """This can be also called Sigmoid_"""
 
     def forward(self, x, log0=0):
-        y = 1/(1 + torch.exp(-x))
+        y = 1 / (1 + torch.exp(-x))
         logJ = self.sum_density(-x + 2 * torch.log(y))
         return y, log0 + logJ
 
@@ -99,7 +106,7 @@ class Logit_(Module_):
     """This is inverse of Sigmoid_"""
 
     def forward(self, x, log0=0):
-        y = torch.log(x/(1 - x))
+        y = torch.log(x / (1 - x))
         logJ = - self.sum_density(torch.log(x * (1 - x)))
         return y, log0 + logJ
 
@@ -108,7 +115,7 @@ class Logit_(Module_):
 
 
 class Pade11_(Module_):
-    r"""A transformation as a Pade approximant of order 1/1
+    r"""An invertible transformation as a Pade approximant of order 1/1
 
     .. math::
 
@@ -120,35 +127,39 @@ class Pade11_(Module_):
     This transformation is equivalent to math:`f(x; t) = \expit(\logit(x) - t)`
     and its inverse is :math:`f(.; -t)`.
     """
-    def __init__(self, n_channels, channels_axis=1, label='Pade11'):
+
+    softplus = torch.nn.Softplus(beta=np.log(2))
+
+    def __init__(self, n_channels=1, channels_axis=1, label='pade11'):
         super().__init__(label=label)
-        self.logw = torch.nn.Parameter(torch.zeros(n_channels))
+        self.w1 = torch.nn.Parameter(torch.zeros(n_channels))
         self.n_channels = n_channels
         self.channels_axis = channels_axis
 
     def forward(self, x, log0=0):
-        logw = self._logw_reshaped(x.shape)
-        denom = x + torch.exp(logw) * (1 - x)
-        logJ = self.sum_density(logw - 2 * torch.log(denom))
+        d1 = self.get_derivative_reshaped(x.shape)
+        denom = x + (1 - x) * d1
+        logJ = self.sum_density(torch.log(d1) - 2 * torch.log(denom))
         return x / denom, log0 + logJ
 
     def backward(self, x, log0=0):
-        logw = self._logw_reshaped(x.shape)
-        denom = x + torch.exp(-logw) * (1 - x)
-        logJ = self.sum_density(-logw - 2 * torch.log(denom))
+        d1 = self.get_derivative_reshaped(x.shape)
+        denom = x + (1 - x) / d1
+        logJ = self.sum_density(-torch.log(d1) - 2 * torch.log(denom))
         return x / denom, log0 + logJ
 
-    def _logw_reshaped(self, shape):
+    def get_derivative_reshaped(self, shape):
         if self.n_channels == 1:
-            return self.logw
+            w1 = self.w1
         else:
             shape = [1 for _ in shape]
             shape[self.channels_axis] = self.n_channels
-            return self.logw.reshape(*shape)
+            w1 = self.w1.reshape(*shape)
+        return self.softplus(w1)
 
 
 class Pade22_(Module_):
-    r"""A transformation as an invertible Pade approximant of order 2/2
+    r"""An invertible transformation as a Pade approximant of order 2/2
 
     .. math::
 
@@ -157,28 +168,31 @@ class Pade22_(Module_):
     that maps :math:`[0, 1] \to [0, 1]` and is useful for input and output
     variables that vary between zero and one.
     """
+
+    softplus = torch.nn.Softplus(beta=np.log(2))
+
     def __init__(
-            self, n_channels, channels_axis=1, symmetric=False, label='Pade22'
+            self, n_channels=1, channels_axis=1, symmetric=False, label='pade22'
             ):
         super().__init__(label=label)
-        self.logd0 = torch.nn.Parameter(torch.zeros(n_channels))
+        self.w0 = torch.nn.Parameter(torch.zeros(n_channels))
         if not symmetric:
-            self.logd1 = torch.nn.Parameter(torch.zeros(n_channels))
+            self.w1 = torch.nn.Parameter(torch.zeros(n_channels))
         else:
-            self.logd1 = self.logd0
+            self.w1 = self.w0
         self.n_channels = n_channels
         self.channels_axis = channels_axis
         self.symmetric = symmetric
 
     def forward(self, x, log0=0):
-        d0, d1 = self._derivatives_reshaped(x.shape)
+        d0, d1 = self.get_derivatives_reshaped(x.shape)
         denom = (1 + (d1 + d0 - 2) * x * (1 - x))
         g_0 = x * (x + d0 * (1 - x)) / denom
         g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
         return g_0, log0 + self.sum_density(torch.log(g_1))
 
     def backward(self, y, log0=0):
-        d0, d1 = self._derivatives_reshaped(y.shape)
+        d0, d1 = self.get_derivatives_reshaped(y.shape)
 
         def invert(y):
             # returns the positive solution of $a x^2 + b x + c = 0$
@@ -195,17 +209,69 @@ class Pade22_(Module_):
         g_1 = (d0 + 2 * (1 - d0) * x + (d1 + d0 - 2) * x**2) / denom**2
         return x, log0 - self.sum_density(torch.log(g_1))
 
-    def _derivatives_reshaped(self, shape):
+    def get_derivatives_reshaped(self, shape):
         if self.n_channels == 1:
-            logd0 = self.logd0
-            logd1 = self.logd1
+            w0 = self.w0
+            w1 = self.w1
         else:
             shape = [1 for _ in shape]
             shape[self.channels_axis] = self.n_channels
-            logd0 = self.logd0.reshape(*shape)
-            logd1 = self.logd1.reshape(*shape)
+            w0 = self.w0.reshape(*shape)
+            w1 = self.w1.reshape(*shape)
 
-        return torch.exp(logd0), torch.exp(logd1)
+        return self.softplus(w0), self.softplus(w1)
+
+
+class Pade32_(Module_):
+    r"""An invertible transformation as a Pade approximant of order 3/2
+
+    .. math::
+
+        f(x) = x (a + x^2) / (1 + a x^2)
+
+    which is invertible for :math:`0 < a < 3`.
+    Note that this transformation is not the most general invertible Pade 3/2,
+    but is has the following traits: it is odd and regular at any finite real
+    :math:`x`, it has three fixed points at zero and plus/minus unity,
+    and it is proportional to :math:`x` as :math:`x \to \pm \infty`.
+
+    Moreover, this can be used as a nonlinear activation (if :math:`a \neq 1`).
+    """
+
+    def __init__(self, n_channels=1, channels_axis=1, label='pade32'):
+        super().__init__(label=label)
+        self.w0 = - torch.nn.Parameter(torch.log(2 * torch.ones(n_channels)))
+        self.n_channels = n_channels
+        self.channels_axis = channels_axis
+
+    def forward(self, x, log0=0):
+        a = self.get_derivative_reshaped(x.shape)  # a is derivative at x=0
+        s = x**2
+        y = x * (a + s) / (1 + a * s)
+        dy_by_dx = (a * s**2 + (3 - a**2) * s + a) / (1 + a * s)**2
+        logJ = self.sum_density(torch.log(dy_by_dx))
+        return y, log0 + logJ
+
+    def backward(self, y, log0=0):
+        """We solve a cubic relation that has only one real solution."""
+        a = self.get_derivative_reshaped(x.shape)  # a is derivative at x=0
+        delta0 = a**2 -  3 * a / y**2
+        delta1 = - 2 * a**3 + (9 * a**2 - 27) / y**2
+        delta = 2**(-1/3) * (- delta1 + torch.sqrt(delta1**2 - 4*delta0**3))**(1/3)
+        x = y * (a + delta + delta0 / delta) / 3
+        s = x**2
+        dy_by_dx = (a * s**2 + (3 - a**2) * s + a) / (1 + a * s)**2
+        logJ = self.sum_density(-torch.log(dy_by_dx))
+        return x, log0 + logJ
+
+    def get_derivative_reshaped(self, shape):
+        if self.n_channels == 1:
+            w0 = self.w0
+        else:
+            shape = [1 for _ in shape]
+            shape[self.channels_axis] = self.n_channels
+            w0 = self.w0.reshape(*shape)
+        return 3 * torch.special.expit(w0)
 
 
 class SplineNet_(SplineNet, Module_):
