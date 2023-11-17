@@ -20,6 +20,7 @@ class AvgNeighborPool(torch.nn.Module):
 
 
 class Abs(torch.nn.Module):
+    """Added for adding to the list of activations"""
 
     def forward(self, x):
         return torch.abs(x)
@@ -29,20 +30,21 @@ class Expit(torch.nn.Module):
     """This can be also called Sigmoid and is basically torch.nn.Sigmoid"""
 
     def forward(self, x):
-        return 1/(1 + torch.exp(-x))
+        return torch.special.expit
 
 
 class Logit(torch.nn.Module):
     """This is inverse of Sigmoid"""
 
     def forward(self, x):
-        return torch.log(x/(1 - x))
+        return torch.special.logit
 
 
 ACTIVATIONS = torch.nn.ModuleDict(
                     [['tanh', torch.nn.Tanh()],
                      ['relu', torch.nn.ReLU()],
                      ['leaky_relu', torch.nn.LeakyReLU()],
+                     ['softplus', torch.nn.Softplus()],
                      ['avg_neighbor_pool', AvgNeighborPool()],
                      ['abs', Abs()],
                      ['expit', Expit()],
@@ -61,17 +63,6 @@ class PlusBias(torch.nn.Module):
 
     def forward(self, x):
         return x + self.bias
-
-
-class Module(torch.nn.Module):
-    """A prototype class with transfer method and label."""
-
-    def __init__(self, label=None):
-        super().__init__()
-        self.label = label
-
-    def transfer(self, **kwargs):
-        return copy.deepcopy(self)
 
 
 class ConvAct(torch.nn.Sequential):
@@ -167,8 +158,8 @@ class ConvAct(torch.nn.Sequential):
             for param in net.parameters():
                 torch.nn.init.zeros_(param)
 
-    def transfer(self, scale_factor=1, **extra):
-        # Outdated.; must be updated
+    def _outdated_transfer(self, scale_factor=1, **extra):
+        # Outdated: must be updated and ...
         """
         Returns a copy of the current module if scale_factor is 1.
         Otherwise, uses the input scale_factor to resize the kernel size.
@@ -281,58 +272,57 @@ class LinearAct(torch.nn.Sequential):
             for param in net.parameters():
                 torch.nn.init.zeros_(param)
 
-    def transfer(self, **kwargs):
-        return copy.deepcopy(self)
 
+class SplineNet(torch.nn.Module):
+    """
+    Return a neural network for spline interpolation/extrapolation.
+    The input `knots_len` specifies the number of knots of the spline.
+    In general, the first knot is always at (xlim[0], ylim[0]) and the last
+    knot is always at (xlim[1], ylim[1]) and the coordintes of other knots are
+    network parameters to be trained, unless one explicitely provides
+    `knots_x` and/or `knots_y`.
+    Assuming `knots_x` is None, one needs `(knots_len - 1)` parameters to
+    specify the `x` position of the knots (with softmax);
+    similarly for the `y` position.
+    There will be additional `knots_len` parameters to specify the derivatives
+    at knots unless `smooth == True`.
 
-class SplineNet(Module):
+    Note that `knots_len` must be at least equal 2. Also note that
+
+        SplineNet(2, smooth=True)
+
+    is basically an identity net (although it has two dummy parameters!)
+
+    Can be used as a probability distribution convertor for variables with
+    nonzero probability in [0, 1].
+
+    Parameters
+    ----------
+    knots_len : int
+        number of knots of the spline.
+    xlim & ylim : array-like
+        the min and max values for `x` & `y` of the knots.
+    knots_x & knots_y & knots_d : None or tensors, optional
+        fix corresponding tensors to the input if provided.
+     spline_shape : array-like  # (Question: Is this USED at all?)
+        specifies number of splines organized as a tensor
+        (default is [], indicating there is only one spline).
+     knots_axis : int
+        relevant only if spline_shape is not empty list (default value is -1).
+    """
+
+    softmax = torch.nn.Softmax(dim=0)
+    softplus = torch.nn.Softplus(beta=np.log(2))
+    # we set the beta of Softplus to log(2) so that self.softplust(0) is 1.
+    # Then, it would be easy to set the derivatives to 1 (with zero inputs).
 
     def __init__(self, knots_len, xlim=(0, 1), ylim=(0, 1),
             knots_x=None, knots_y=None, knots_d=None,
             spline_shape=[], knots_axis=-1,
             smooth=False, Spline=RQSpline, label='spline', **spline_kwargs
             ):
-        """
-        Return a neural network for spline interpolation/extrapolation.
-        The input `knots_len` specifies the number of knots of the spline.
-        In general, the first knot is always at (xlim[0], ylim[0]) and the last
-        knot is always at (xlim[1], ylim[1]) and the coordintes of other knots
-        are network parameters to be trained, unless one explicitely provides
-        `knots_x` and/or `knots_y`.
-        Assuming `knots_x` is None, one needs `(knots_len - 1)` parameters to
-        specify the `x` position of the knots (with softmax);
-        similarly for the `y` position.
-        There will be additional `knots_len` parameters to specify the
-        derivatives at knots unless `smooth == True`.
-
-        Note that `knots_len` must be at least equal 2.
-        Also note that
-
-            SplineNet(2, smooth=True)
-
-        is basically an identity net (although it has two dummy parameters!)
-
-        Can be used as a probability distribution convertor for variables with
-        nonzero probability in [0, 1].
-
-        Parameters
-        ----------
-        knots_len : int
-            number of knots of the spline.
-        xlim & ylim : array-like
-            the min and max values for `x` & `y` of the knots.
-        knots_x & knots_y & knots_d : None or tensors, optional
-            fix corresponding tensors to the input if provided.
-
-        spline_shape : array-like (IS USED AT ALL?)
-            specifies number of splines organized as a tensor
-            (default is [], indicating there is only one spline).
-
-        knots_axis : int
-            relevant only if spline_shape is not []
-            (default value is -1)
-        """
-        super().__init__(label=label)
+        super().__init__()
+        self.label = label
 
         # knots_len and spline_shape are relevant only if flag is True
         flag = (knots_x is None) or (knots_y is None) or (knots_d is None)
@@ -348,12 +338,6 @@ class SplineNet(Module):
 
         self.Spline = Spline
         self.spline_kwargs = spline_kwargs
-
-        self.softmax = torch.nn.Softmax(dim=0)
-        self.softplus = torch.nn.Softplus(beta=np.log(2))
-        # we set the beta of Softplus to log(2) so that self.softplust(0)
-        # returns 1. With this setting it would be easy to set the derivatives
-        # to 1 (with zero inputs).
 
         init = lambda n: torch.zeros(*spline_shape, n)
 
