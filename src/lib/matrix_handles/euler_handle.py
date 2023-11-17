@@ -21,8 +21,9 @@ class SU2MatrixEulerParametrizer:
     We use `su2_to_euler_angles` for decomposition, which can be called with
     `alt_param` option set to False (default) or True:
 
-        >>> [phi, theta, psi] = su2_to_euler_angles(matrix)
-        >>> [abs00, s, d] = su2_to_euler_angles(matrix, alt_param=True)
+        >>> [phi, theta, psi] = su2_to_euler_angles(matrix, channel_axis=None)
+        >>> [abs00, s, d] = su2_to_euler_angles(matrix, alt_param=True,
+                                                channel_axis=None)
 
     where
         >>> s = (phi + psi) / (2 np.pi) + 0.5  # sum
@@ -33,10 +34,6 @@ class SU2MatrixEulerParametrizer:
 
     Inside this class we always set `alt_param = True`.
     """
-
-    def __init__(self, nonfixed_angles_list=[0, 1]):
-        self.nonfixed_angles_list = nonfixed_angles_list
-        self.euler_angles = [None, None, None]
 
     @classmethod
     def matrix2angles_(cls, matrix):
@@ -52,7 +49,7 @@ class SU2MatrixEulerParametrizer:
     @classmethod
     def angles2matrix_(cls, euler_angles):
         """Reverse of matrix2angles_."""
-        matrix = euler_angles_to_su2(*euler_angles, alt_param=True)
+        matrix = euler_angles_to_su2(euler_angles, alt_param=True)
         logJ = -sum_density(
                 cls.calc_log_jacobian(euler_angles, alt_param=True)
                 )  # up to an additive constant
@@ -64,26 +61,19 @@ class SU2MatrixEulerParametrizer:
         The scaling of the euler angles is not incorporated to logJ because it
         is going to be undone when param2matrix_ is called.
         """
-        self.euler_angles, logJ = self.matrix2angles_(matrix)
-        euler_param = [self.euler_angles[k] for k in self.nonfixed_angles_list]
-        return torch.stack(euler_param, dim=-1), logJ
+        self.matrix = matrix
+        return self.matrix2angles_(matrix)
 
     def param2matrix_(self, param, reduce_=False):
         """Reverse of matrix2param_.
 
         The `reduce_` option is introduced such that if True, this method
-        returns `M * M_old^\dagger`.
+        returns `M @ M_old^\dagger`.
         """
-        euler_angles = [angle for angle in self.euler_angles]
-        # now update the nonfixed ones from the input param
-        for l, k in enumerate(self.nonfixed_angles_list):
-            euler_angles[k] = param[..., l]
-
-        new_matrix, logJ = self.angles2matrix_(euler_angles)
+        new_matrix, logJ = self.angles2matrix_(param)
 
         if reduce_:
-            old_matrix = euler_angles_to_su2(*self.euler_angles, alt_param=True)
-            return new_matrix @ old_matrix.adjoint(), logJ
+            return new_matrix @ self.matrix.adjoint(), logJ
         else:
             return new_matrix, logJ
 
@@ -96,10 +86,10 @@ class SU2MatrixEulerParametrizer:
         """
         # *inverse* of Jacobian equals the volume of conjugacy class
         if alt_param:
-            abs00 = euler_angles[0]
+            abs00 = euler_angles[..., 0]
             return -torch.log(abs00)
         else:
-            theta = euler_angles[1]
+            theta = euler_angles[..., 1]
             return -torch.log(torch.sin(theta))
 
     @staticmethod
@@ -110,10 +100,10 @@ class SU2MatrixEulerParametrizer:
         See eq (4.8) in arXiv:math-ph/0210033.
         """
         if alt_param:
-            abs00 = euler_angles[0]
+            abs00 = euler_angles[..., 0]
             return 1 / abs00
         else:
-            theta = euler_angles[1]
+            theta = euler_angles[..., 1]
             return 1 / torch.sin(theta)
 
 
