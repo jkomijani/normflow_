@@ -15,23 +15,3 @@ from .scalar.cntr_couplings_ import CntrRQSplineCoupling_, CntrMultiRQSplineCoup
 from .scalar.fftflow_ import FFTNet_
 from .scalar.meanfield_ import MeanFieldNet_
 from .scalar.psd_ import PSDBlock_
-
-from .matrix.matrix_module_ import MatrixModule_
-from .matrix.stapled_matrix_module_ import StapledMatrixModule_
-
-from .gauge.planar_gauge_module_ import PlanarGaugeModule_, PlanarGaugeModuleList_
-
-from .gauge.gauge_module_ import GaugeModule_, SVDGaugeModule_, GaugeModuleList_
-from .gauge.gauge_module_  import PolyakovGaugeModule_
-
-from .gauge.gauge_param_couplings_ import Pade11Coupling_
-from .gauge.gauge_param_couplings_ import Pade22Coupling_
-from .gauge.gauge_param_couplings_ import SU3RQSplineCoupling_
-from .gauge.gauge_param_couplings_ import SU2RQSplineCoupling_
-from .gauge.gauge_param_couplings_ import U1RQSplineCoupling_
-from .gauge.gauge_param_couplings_ import SUnParamAffineCoupling_
-
-from .gauge.gauge_param_dual_couplings_ import  Pade11DualCoupling_
-from .gauge.gauge_param_dual_couplings_ import  Pade22DualCoupling_
-from .gauge.gauge_param_dual_couplings_ import  SU2RQSplineDualCoupling_
-from .gauge.gauge_param_dual_couplings_ import  SU3RQSplineDualCoupling_
