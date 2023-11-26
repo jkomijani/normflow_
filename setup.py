@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Javad Komijani
+# Copyright (c) 2021-2023 Javad Komijani
 
 
 from setuptools import setup
@@ -53,13 +53,13 @@ package_dir = {
 
 setup(name='normflow',
       version='1.1',
-      description='Normalizing flows for generating quantum field configurations',
+      description='Normalizing flow for generating lattice field configurations',
       packages=packages,
       package_dir=package_dir,
       url='http://github.com/jkomijani/normflow',
       author='Javad Komijani',
       author_email='jkomijani@gmail.com',
       license='MIT',
-      install_requires=['numpy>=1.1', 'torch>=1.1'],
+      install_requires=['numpy>=1.20', 'torch>=2.0'],
       zip_safe=False
       )
