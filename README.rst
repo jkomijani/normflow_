@@ -55,15 +55,33 @@ Below is a simple example of a scalar theory in zero dimension:
     >>> Epoch: 500 | loss: -1.05209  | ... | accept_rate: 0.914(9)
 
 After training the model, one can draw samples using an attribute called
-`posterior`; `model.poseterior.sample(n)` to draw `n` samples from the
-trained distribution. Note that the train distribution is almost never
-identical to the target distribution, which is specified by the action.
+`posterior`; to draw :math:`n` samples from the trained distribution, use
+
+    >>> x = model.poseterior.sample(n)
+
+Note that the train distribution is almost never identical to the target
+distribution, which is specified by the action.
 To generate samples that are correctly drawn from the target distribution,
 similar to Markov Chain Monte Carlo (MCMC) simulations,
 one can employ a Metropolis accept/reject step and discard some of the first
-samples.
-To this end, one can use `model.mcmc.sample(n)`, which draws `n` samples from
-the trained distribution and applies a Metropolis accept/reject step.
+samples; to this end, one can use
+
+    >>> x = model.mcmc.sample(n)
+
+which draws :math:`n` samples from the trained distribution and applies a
+Metropolis accept/reject step to ensure that the samples are correctly drawn.
+
+Moreover, the model has an attribute called `device_handler`, which can be used
+to specify the number of GPUs used for training (the default value is one if
+any GPU is available).
+To this end, one can use:
+
+    >>> def fit_func(model):
+    >>>     model.fit(n_epochs=500, batch_size=128)
+    >>>
+    >>> model.device_handler.spawnprocesses(fit_func, nranks)
+
+where `nranks` specifies the number of GPUs.
 
 
 | Created by Javad Komijani on 2021
