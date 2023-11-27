@@ -57,7 +57,7 @@ Below is a simple example of a scalar theory in zero dimension:
 After training the model, one can draw samples using an attribute called
 `posterior`; to draw :math:`n` samples from the trained distribution, use
 
-    >>> x = model.poseterior.sample(n)
+    >>> x = model.posterior.sample(n)
 
 Note that the train distribution is almost never identical to the target
 distribution, which is specified by the action.
