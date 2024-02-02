@@ -8,7 +8,4 @@ jobs:
      name: Job that triggers SQAaaS platform
      steps:
        - name: SQAaaS assessment step
-         uses: eosc-synergy/sqaaas-assessment-action@v1
-         with:
-           repo: 'https://github.com/jkomijani/normflow_'
-           branch: 'normflow_public_v1.1'
+         uses: eosc-synergy/sqaaas-assessment-action@v2
