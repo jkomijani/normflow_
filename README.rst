@@ -14,13 +14,13 @@ actively extending the package to accommodate gauge theories, broadening its
 applicability.
 
 In a nutshell, for the method of normalizing flows, one should provide three
-essential components::
+essential components:
 
-   - A prior distribution to draw initial samples.
-   - A neural network to perform a series of invertible transformations on the
-     samples.
-   - An action that specifies the target distribution, defining the goal of the
-     generative model.
+*   a prior distribution to draw initial samples,
+*   a neural network to perform a series of invertible transformations on the
+    samples,
+*   an action that specifies the target distribution, defining the goal of the
+    generative model.
 
 The central high-level class of the package is called ``Model``, which can be
 instantiated by providing instances of the three objects mentioned earlier for
