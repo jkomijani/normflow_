@@ -15,6 +15,7 @@ applicability.
 
 In a nutshell, for the method of normalizing flows, one should provide three
 essential components::
+
    - A prior distribution to draw initial samples.
    - A neural network to perform a series of invertible transformations on the
      samples.
