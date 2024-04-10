@@ -21,6 +21,7 @@ used by other modules of this package.
 import torch
 import time
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -219,7 +220,7 @@ class Fitter:
         snapshot_path = self.checkpoint_dict['snapshot_path']
         if torch.cuda.is_available():
             gpu_id = self._model.device_handler.rank
-            #gpu_id = int(os.environ["LOCAL_RANK"])
+            #gpu_id = int(os.environ["LOCAL_RANK"]) might be needed for torchrun ??
             loc = f"cuda:{gpu_id}"
             print(f"GPU: Attempting to load saved model into {loc}")
         else: 
@@ -236,11 +237,12 @@ class Fitter:
             training at a later date. """
         
         snapshot_path = self.checkpoint_dict['snapshot_path']
+        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epoch) + ".tar" 
         snapshot = {
                     "MODEL_STATE": self._model.net_.state_dict(),
                      "EPOCHS_RUN": epoch }
-        torch.save(snapshot, snapshot_path)
-        print(f"Epoch {epoch} | Training snapshot saved at {snapshot_path}")
+        torch.save(snapshot, snapshot_new_path)
+        print(f"Epoch {epoch} | Training snapshot saved at {snapshot_new_path}")
 
     def train(self, n_epochs, batch_size, epochs_run, save_every):
         """Train the model.
@@ -302,6 +304,7 @@ class Fitter:
         # For the rest
         print_stride = self.checkpoint_dict['print_stride']
         print_batch_size = self.checkpoint_dict['print_batch_size']
+        snapshot_path = self.checkpoint_dict['snapshot_path']
 
         print_batch_size = print_batch_size // self._model.device_handler.nranks
 
@@ -317,7 +320,7 @@ class Fitter:
                 self._append_to_train_history(logq, logp)
                 self.print_fit_status(epoch, loss=loss_)
         
-        if rank == 0 and (epoch % save_every == 0):
+        if rank == 0 and (epoch % save_every == 0) and snapshot_path is not "0":
             self._save_snapshot(epoch)
 
     @staticmethod
@@ -407,7 +410,7 @@ class Fitter:
         ess = mydict['ess'][-1]
         rho = mydict['rho'][-1]
 
-        if epoch == 1:
+        if epoch == 0:
             print(f"\n>>> Training progress ({ess.device}) <<<\n")
             print("Note: log(q/p) is estimated with normalized p; " \
                   + "mean & error are obtained from samples in a batch\n")
