@@ -218,7 +218,8 @@ class Fitter:
     def _load_snapshot(self):
         snapshot_path = self.checkpoint_dict['snapshot_path']
         if torch.cuda.is_available():
-            gpu_id = int(os.environ["LOCAL_RANK"])
+            gpu_id = self._model.device_handler.rank
+            #gpu_id = int(os.environ["LOCAL_RANK"])
             loc = f"cuda:{gpu_id}"
             print(f"GPU: Attempting to load saved model into {loc}")
         else: 
