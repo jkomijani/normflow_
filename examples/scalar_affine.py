@@ -35,10 +35,11 @@ def main(kappa=0.67, m_sq=-4*0.67, lambd=0.5, n_epochs=1000, batch_size=128,
     else:
         hyperparam = dict()
 
-    snaps_dir = "../torch-snapshots"
-    snaps_name= "test_scalar_affine.E200.tar"   # if exists resume from here <name>.epoch.tar
+    snaps_dir = "../torch-snapshots"            # folder in which snapshots are stored
+    # saved snaps MUST BE "<name>.<epoch>.tar"
+    snaps_name= "test_scalar_affine.E200.tar" # if <snaps_name> exists resume training from there  
     snaps_path = os.path.join(snaps_dir, snaps_name)
-#    snaps_path = '0'      # set to 0 if you don't want to save any snapshots
+#    snaps_path = '0'      # set to '0' if you don't want to save any snapshots
     fit_kwargs = dict(
             n_epochs=n_epochs,
             save_every=100,
