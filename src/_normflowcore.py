@@ -144,13 +144,13 @@ class Fitter:
             print_stride=100,
             print_batch_size=1024,
             print_extra_func=None,
-            snapshot_path=None
+            snapshot_path=None,
+            epochs_run=0
             )
 
     def __call__(self,
             n_epochs=1000,
             save_every=None,
-            epochs_run=0,
             batch_size=64,
             optimizer_class=torch.optim.AdamW,
             scheduler=None,
@@ -193,15 +193,17 @@ class Fitter:
 
         snapshot_path = self.checkpoint_dict['snapshot_path']
 
-        if os.path.exists(snapshot_path):
+        if save_every is None:
+            save_every = n_epochs
+
+        # decide whether to save/load snapshots
+        if snapshot_path is None:
+            print("Not saving model snapshots")
+        elif os.path.exists(snapshot_path):
             print(f"Trying to load snapshot from {snapshot_path}")
             self._load_snapshot()
         else:
             print("Starting training from scratch")
-
-        if save_every==None:
-            save_every = n_epochs // 10
-
 
         self.loss_fn = Fitter.calc_kl_mean if loss_fn is None else loss_fn
 
@@ -214,7 +216,7 @@ class Fitter:
 
         self.scheduler = None if scheduler is None else scheduler(self.optimizer)
 
-        return self.train(n_epochs, batch_size, epochs_run, save_every)
+        return self.train(n_epochs, batch_size, save_every)
 
     def _load_snapshot(self):
         snapshot_path = self.checkpoint_dict['snapshot_path']
@@ -227,32 +229,30 @@ class Fitter:
             loc = None # cpu training
             print("CPU: Attempting to load saved model")
         snapshot = torch.load(snapshot_path, map_location=loc)
-        print(f"Snapshot found at \n {snapshot_path} \n")
-        self._model.net_.load_state_dict(snapshot["MODEL_STATE"])
-        self.epochs_run = snapshot["EPOCHS_RUN"]
-        print(f"Resuming training from snapshot at Epoch {self.epochs_run}")
+        self._model.net_.load_state_dict(snapshot["MODEL_STATE"]) 
+        self.checkpoint_dict['epochs_run'] = snapshot['EPOCHS_RUN']
+        print(f"Snapshot found: {snapshot_path}\nResuming training via Saved Snapshot at Epoch {snapshot['EPOCHS_RUN']}")
 
     def _save_snapshot(self, epoch):
         """ Save snapshot of training for analysis and/or to continue
             training at a later date. """
         
         snapshot_path = self.checkpoint_dict['snapshot_path']
-        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epoch) + ".tar" 
+        epochs_run = epoch + self.checkpoint_dict['epochs_run']
+        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epochs_run) + ".tar" 
         snapshot = {
                     "MODEL_STATE": self._model.net_.state_dict(),
-                     "EPOCHS_RUN": epoch }
+                     "EPOCHS_RUN": epochs_run }
         torch.save(snapshot, snapshot_new_path)
-        print(f"Epoch {epoch} | Training snapshot saved at {snapshot_new_path}")
+        print(f"Epoch {epochs_run} | Model Snapshot saved at {snapshot_new_path}")
 
-    def train(self, n_epochs, batch_size, epochs_run, save_every):
+    def train(self, n_epochs, batch_size, save_every):
         """Train the model.
 
         Parameters
         ----------
         n_epochs : int
             Number of epochs of training
-
-        epochs_run: int
 
         batch_size : int
             Size of samples used at each epoch
@@ -263,7 +263,7 @@ class Fitter:
         """
         self.train_batch_size = batch_size
         T1 = time.time()
-        for epoch in range(epochs_run, epochs_run+n_epochs):
+        for epoch in range(1, n_epochs+1):
             loss, logqp = self.step()
             self.checkpoint(epoch, loss, save_every)
             if self.scheduler is not None:
@@ -296,15 +296,16 @@ class Fitter:
     def checkpoint(self, epoch, loss, save_every):
 
         rank = self._model.device_handler.rank
+        print_stride = self.checkpoint_dict['print_stride']
+        print_batch_size = self.checkpoint_dict['print_batch_size']
+        snapshot_path = self.checkpoint_dict['snapshot_path']
 
         # Always save loss on rank 0
         if rank == 0:
             self.train_history['loss'].append(loss.item())
-
-        # For the rest
-        print_stride = self.checkpoint_dict['print_stride']
-        print_batch_size = self.checkpoint_dict['print_batch_size']
-        snapshot_path = self.checkpoint_dict['snapshot_path']
+            # Save model as well
+            if snapshot_path is not None and (epoch % save_every == 0):
+                self._save_snapshot(epoch)
 
         print_batch_size = print_batch_size // self._model.device_handler.nranks
 
@@ -320,8 +321,6 @@ class Fitter:
                 self._append_to_train_history(logq, logp)
                 self.print_fit_status(epoch, loss=loss_)
         
-        if rank == 0 and (epoch % save_every == 0) and snapshot_path is not "0":
-            self._save_snapshot(epoch)
 
     @staticmethod
     def calc_kl_mean(logq, logp):
@@ -410,11 +409,12 @@ class Fitter:
         ess = mydict['ess'][-1]
         rho = mydict['rho'][-1]
 
-        if epoch == 0:
+        if epoch == 1:
             print(f"\n>>> Training progress ({ess.device}) <<<\n")
             print("Note: log(q/p) is estimated with normalized p; " \
                   + "mean & error are obtained from samples in a batch\n")
 
+        epoch += self.checkpoint_dict['epochs_run']
         str_ = f"Epoch: {epoch} | loss: {loss:g} | ess: {ess:g} | rho: {rho:g}"
         str_ += " | log(z): {0} | log(q/p): {1} | accept_rate: {2}".format(
                 fmt_val_err(logz_mean, logz_std, err_digits=2),
