@@ -18,16 +18,16 @@ that allow us to define neural networks; these two classes are imported and
 used by other modules of this package.
 """
 
-
 import torch
 import time
+import os
+from pathlib import Path
 
 import numpy as np
 
 from .mcmc import MCMCSampler, BlockedMCMCSampler
 from .lib.combo import estimate_logz, fmt_val_err
 from .device import ModelDeviceHandler
-
 
 # =============================================================================
 class Model:
@@ -144,12 +144,13 @@ class Fitter:
             print_stride=100,
             print_batch_size=1024,
             print_extra_func=None,
-            save_epochs=[],
-            save_fname_func=None
+            snapshot_path=None,
+            epochs_run=0
             )
 
     def __call__(self,
             n_epochs=1000,
+            save_every=None,
             batch_size=64,
             optimizer_class=torch.optim.AdamW,
             scheduler=None,
@@ -164,6 +165,9 @@ class Fitter:
         ----------
         n_epochs : int
             Number of epochs of training
+
+        save_every: int
+            save a model every <save_every> epochs
 
         batch_size : int
             Size of samples used at each epoch
@@ -187,6 +191,20 @@ class Fitter:
         self.hyperparam.update(hyperparam)
         self.checkpoint_dict.update(checkpoint_dict)
 
+        snapshot_path = self.checkpoint_dict['snapshot_path']
+
+        if save_every is None:
+            save_every = n_epochs
+
+        # decide whether to save/load snapshots
+        if snapshot_path is None:
+            print("Not saving model snapshots")
+        elif os.path.exists(snapshot_path):
+            print(f"Trying to load snapshot from {snapshot_path}")
+            self._load_snapshot()
+        else:
+            print("Starting training from scratch")
+
         self.loss_fn = Fitter.calc_kl_mean if loss_fn is None else loss_fn
 
         net_ = self._model.net_
@@ -198,9 +216,37 @@ class Fitter:
 
         self.scheduler = None if scheduler is None else scheduler(self.optimizer)
 
-        return self.train(n_epochs, batch_size)
+        return self.train(n_epochs, batch_size, save_every)
 
-    def train(self, n_epochs, batch_size):
+    def _load_snapshot(self):
+        snapshot_path = self.checkpoint_dict['snapshot_path']
+        if torch.cuda.is_available():
+            gpu_id = self._model.device_handler.rank
+            #gpu_id = int(os.environ["LOCAL_RANK"]) might be needed for torchrun ??
+            loc = f"cuda:{gpu_id}"
+            print(f"GPU: Attempting to load saved model into {loc}")
+        else: 
+            loc = None # cpu training
+            print("CPU: Attempting to load saved model")
+        snapshot = torch.load(snapshot_path, map_location=loc)
+        self._model.net_.load_state_dict(snapshot["MODEL_STATE"]) 
+        self.checkpoint_dict['epochs_run'] = snapshot['EPOCHS_RUN']
+        print(f"Snapshot found: {snapshot_path}\nResuming training via Saved Snapshot at Epoch {snapshot['EPOCHS_RUN']}")
+
+    def _save_snapshot(self, epoch):
+        """ Save snapshot of training for analysis and/or to continue
+            training at a later date. """
+        
+        snapshot_path = self.checkpoint_dict['snapshot_path']
+        epochs_run = epoch + self.checkpoint_dict['epochs_run']
+        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epochs_run) + ".tar" 
+        snapshot = {
+                    "MODEL_STATE": self._model.net_.state_dict(),
+                     "EPOCHS_RUN": epochs_run }
+        torch.save(snapshot, snapshot_new_path)
+        print(f"Epoch {epochs_run} | Model Snapshot saved at {snapshot_new_path}")
+
+    def train(self, n_epochs, batch_size, save_every):
         """Train the model.
 
         Parameters
@@ -216,11 +262,10 @@ class Fitter:
         being called at least once.
         """
         self.train_batch_size = batch_size
-        last_epoch = len(self.train_history["loss"]) + 1
         T1 = time.time()
-        for epoch in range(last_epoch, last_epoch + n_epochs):
+        for epoch in range(1, n_epochs+1):
             loss, logqp = self.step()
-            self.checkpoint(epoch, loss)
+            self.checkpoint(epoch, loss, save_every)
             if self.scheduler is not None:
                 self.scheduler.step()
         T2 = time.time()
@@ -248,19 +293,19 @@ class Fitter:
 
         return loss, logq - logp
 
-    def checkpoint(self, epoch, loss):
+    def checkpoint(self, epoch, loss, save_every):
 
         rank = self._model.device_handler.rank
+        print_stride = self.checkpoint_dict['print_stride']
+        print_batch_size = self.checkpoint_dict['print_batch_size']
+        snapshot_path = self.checkpoint_dict['snapshot_path']
 
         # Always save loss on rank 0
         if rank == 0:
             self.train_history['loss'].append(loss.item())
-
-        # For the rest
-        print_stride = self.checkpoint_dict['print_stride']
-        print_batch_size = self.checkpoint_dict['print_batch_size']
-        save_epochs = self.checkpoint_dict['save_epochs']
-        save_fname_func = self.checkpoint_dict['save_fname_func']
+            # Save model as well
+            if snapshot_path is not None and (epoch % save_every == 0):
+                self._save_snapshot(epoch)
 
         print_batch_size = print_batch_size // self._model.device_handler.nranks
 
@@ -275,16 +320,12 @@ class Fitter:
                 loss_ = self.loss_fn(logq, logp)
                 self._append_to_train_history(logq, logp)
                 self.print_fit_status(epoch, loss=loss_)
-
-                # if self.checkpoint_dict['display']:
-                #     self.live_plot_handle.update(self.train_history)
-
-        if rank == 0 and epoch in save_epochs:
-            torch.save(self._model.net_, save_fname_func(epoch))
+        
 
     @staticmethod
     def calc_kl_mean(logq, logp):
-        """Return Kullback-Leibler divergence estimated from logq and logp"""
+        """Return Kullback-Leibler divergence estimated
+            from logq and logp """
         return (logq - logp).mean()  # KL, assuming samples from q
 
     @staticmethod
@@ -297,18 +338,12 @@ class Fitter:
 
     @staticmethod
     def calc_direct_kl_mean(logq, logp):
-        r"""Return *direct* KL mean, which is defined as
-
+        """Return *direct* KL mean, which is defined as
         .. math::
-
            \frac{\sum \frac{p}{q} (\log(\frac{p}{q}) + logz)}{\sum \frac{p}{q}}
-
         where
-
         .. math::
-
            logz = \log( \sum(frac{p}{q}) / N)
-
         wbere N is the number of samples. The direct KL means is invariant
         under scaling p and/or q.
         """
@@ -376,9 +411,10 @@ class Fitter:
 
         if epoch == 1:
             print(f"\n>>> Training progress ({ess.device}) <<<\n")
-            print("Note: log(q/p) is esitamted with normalized p; " \
+            print("Note: log(q/p) is estimated with normalized p; " \
                   + "mean & error are obtained from samples in a batch\n")
 
+        epoch += self.checkpoint_dict['epochs_run']
         str_ = f"Epoch: {epoch} | loss: {loss:g} | ess: {ess:g} | rho: {rho:g}"
         str_ += " | log(z): {0} | log(q/p): {1} | accept_rate: {2}".format(
                 fmt_val_err(logz_mean, logz_std, err_digits=2),
