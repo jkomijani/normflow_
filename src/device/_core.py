@@ -6,13 +6,13 @@ import os
 import warnings
 
 from functools import partial
-from torch.nn.parallel import DistributedDataParallel as DDP
+# from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 from torch.multiprocessing.spawn import ProcessException
 
 
 # =============================================================================
-class _DDP(torch.nn.parallel.DistributedDataParallel):
+class DDP(torch.nn.parallel.DistributedDataParallel):
     # After wrapping a Module with DistributedDataParallel, the attributes of
     # the module (e.g. custom methods) became inaccessible. To access them,
     # a workaround is to use a subclass of DistributedDataParallel as here.
