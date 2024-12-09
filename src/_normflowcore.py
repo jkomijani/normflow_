@@ -192,13 +192,17 @@ class Fitter:
         self.checkpoint_dict.update(checkpoint_dict)
 
         snapshot_path = self.checkpoint_dict['snapshot_path']
+        snapshot_dir  = os.path.dirname(snapshot_path)
 
         if save_every is None:
-            save_every = n_epochs
+            save_every = n_epochs   # save only the last epoch
 
         # decide whether to save/load snapshots
         if snapshot_path is None:
             print("Not saving model snapshots")
+        elif not os.path.exists(snapshot_dir):
+            print("%s does not exist, aborting" %(snapshot_dir))
+            raise SystemExit() 
         elif os.path.exists(snapshot_path):
             print(f"Trying to load snapshot from {snapshot_path}")
             self._load_snapshot()
