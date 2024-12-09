@@ -1,4 +1,4 @@
-tests/
 backstore/
 build/
 normflow.egg-info/
+__pycache__
