@@ -191,7 +191,9 @@ class Fitter:
         self.hyperparam.update(hyperparam)
         self.checkpoint_dict.update(checkpoint_dict)
 
+        self.checkpoint_dict['snapshot_path'] = os.path.abspath(checkpoint_dict['snapshot_path'])
         snapshot_path = self.checkpoint_dict['snapshot_path']
+        print(snapshot_path)
         snapshot_dir  = os.path.dirname(snapshot_path)
 
         if save_every is None:
@@ -243,7 +245,7 @@ class Fitter:
         
         snapshot_path = self.checkpoint_dict['snapshot_path']
         epochs_run = epoch + self.checkpoint_dict['epochs_run']
-        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epochs_run) + ".tar" 
+        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epochs_run) + ".pt" 
         snapshot = {
                     "MODEL_STATE": self._model.net_.state_dict(),
                      "EPOCHS_RUN": epochs_run }
