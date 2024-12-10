@@ -191,25 +191,24 @@ class Fitter:
         self.hyperparam.update(hyperparam)
         self.checkpoint_dict.update(checkpoint_dict)
 
-        self.checkpoint_dict['snapshot_path'] = os.path.abspath(checkpoint_dict['snapshot_path'])
-        snapshot_path = self.checkpoint_dict['snapshot_path']
-        print(snapshot_path)
-        snapshot_dir  = os.path.dirname(snapshot_path)
-
+        # this block decides whether to save or load a trained model
+        if checkpoint_dict['snapshot_path'] is not None:
+            self.checkpoint_dict['snapshot_path'] = os.path.abspath(checkpoint_dict['snapshot_path'])
+            snapshot_path = self.checkpoint_dict['snapshot_path']
+            snapshot_dir = os.path.dirname(snapshot_path)
+            if os.path.exists(snapshot_path):
+                print(f"Trying to load snapshot from {snapshot_path}")
+                self._load_snapshot()
+            elif not os.path.exists(snapshot_dir):
+                print(f"{snapshot_dir} does not exist, aborting")
+                raise SystemExit()
+            else:
+                print(f"Starting training from scratch and saving in {snapshot_dir}")
+        else:
+            print("Not saving model snapshots")
+ 
         if save_every is None:
             save_every = n_epochs   # save only the last epoch
-
-        # decide whether to save/load snapshots
-        if snapshot_path is None:
-            print("Not saving model snapshots")
-        elif not os.path.exists(snapshot_dir):
-            print("%s does not exist, aborting" %(snapshot_dir))
-            raise SystemExit() 
-        elif os.path.exists(snapshot_path):
-            print(f"Trying to load snapshot from {snapshot_path}")
-            self._load_snapshot()
-        else:
-            print("Starting training from scratch")
 
         self.loss_fn = Fitter.calc_kl_mean if loss_fn is None else loss_fn
 
