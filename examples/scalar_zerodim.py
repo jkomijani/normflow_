@@ -28,7 +28,9 @@ def main(
 
 
     print("number of model parameters =", model.net_.npar)
-    snapshot_path = "/home/csic/cdi/gsr/torch-snapshots/T4_scl0dim_test.E2000.tar"
+    snapshot_dir  = "<dir"
+    snapshot_name = "<name>"    # if <name> exists training will pickup from there
+    snapshot_path = os.path.join(snapshot_dir, snapshot_name)
     #snapshot_path = None
 
     if nranks > 1:
