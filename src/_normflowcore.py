@@ -459,8 +459,6 @@ class Fitter:
 
         if epoch == 1:
             print(f"\n>>> Training progress ({ess.device}) <<<\n")
-            print("Note: log(q/p) is estimated with normalized p; " \
-                  + "mean & error are obtained from samples in a batch\n")
 
         epoch += self.checkpoint_dict['epochs_run']
         str1 = f"Epoch: {epoch} | loss: {loss:.4f} | ess: {ess:.4f}"
