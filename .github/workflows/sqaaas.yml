@@ -1,4 +1,4 @@
-name: SQAaaS-Test
+name: SQAaaS-without-pytest
 
 on: [push]
 
