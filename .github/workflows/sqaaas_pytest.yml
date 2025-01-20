@@ -1,0 +1,20 @@
+name: SQAaaS-with-pytest
+on: [push]
+jobs:
+   sqaaas_job:
+     runs-on: ubuntu-latest
+     name: Job that triggers SQAaaS platform
+     steps:
+       - name: QC.Uni check
+         uses: eosc-synergy/sqaaas-step-action@v1
+         with:
+           name: qc_uni_pytest
+           container: pytorch/pytorch
+           tool: commands
+           commands: |
+              pip install pytest
+              pytest -sv
+       - name: SQAaaS assessment step
+         uses: eosc-synergy/sqaaas-assessment-action@v2
+         with:
+           qc_uni_steps: qc_uni_pytest
