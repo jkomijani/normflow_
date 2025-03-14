@@ -42,7 +42,7 @@ class Prior(ABC):
 
     @property
     def nvar(self):
-        return np.product(self.shape)
+        return np.prod(self.shape)
 
     @abstractmethod
     def to(self, *args, **kwargs):
