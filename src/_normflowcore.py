@@ -210,8 +210,9 @@ class Fitter:
     """A class for training a given model."""
 
     def __init__(self, model: Model):
-        self._model = model
 
+        self._model = model
+        self.batch_size = 64
         self.train_batch_size = 1
 
         self.train_history = dict(
