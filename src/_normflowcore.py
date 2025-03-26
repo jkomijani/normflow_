@@ -368,7 +368,7 @@ class Fitter:
 
         # Always save loss on rank 0
         if rank == 0:
-            self.train_history['loss'].append(loss.item())
+            self.train_history['loss'].append((loss.item(), epoch))
             # Save model as well
             if snapshot_path is not None and (epoch % save_every == 0):
                 self._save_snapshot(epoch)
@@ -384,7 +384,7 @@ class Fitter:
 
             if rank == 0:
                 loss_ = self.loss_fn(logq, logp)
-                self._append_to_train_history(logq, logp)
+                self._append_to_train_history(logq, logp, epoch)
                 self.print_fit_status(epoch, loss=loss_)
 
     @staticmethod
@@ -431,32 +431,33 @@ class Fitter:
         return - log_ess + np.log(len(logqp))  # normalized
 
     @torch.no_grad()
-    def _append_to_train_history(self, logq, logp):
+    def _append_to_train_history(self, logq, logp, epoch):
+        epoch += self.checkpoint_dict['epochs_run']
         logqp = logq - logp
         logz = estimate_logz(logqp, method='jackknife')  # returns (mean, std)
         accept_rate = self._model.mcmc.estimate_accept_rate(logqp)
         ess = self.calc_ess(logqp, 0)
         rho = self.calc_corrcoef(logq, logp)
         logqp = (logqp.mean().item(), logqp.std().item())
-        self.train_history['logqp'].append(logqp)
-        self.train_history['logz'].append(logz)
-        self.train_history['ess'].append(ess)
-        self.train_history['rho'].append(rho)
-        self.train_history['accept_rate'].append(accept_rate)
+        self.train_history['logqp'].append((logqp[0],logqp[1],epoch))
+        self.train_history['logz'].append((logz[0],logz[1],epoch))
+        self.train_history['ess'].append((ess, epoch))
+        self.train_history['rho'].append((rho, epoch))
+        self.train_history['accept_rate'].append((accept_rate[0],accept_rate[1],epoch))
 
     def print_fit_status(self, epoch, loss=None):
         mydict = self.train_history
         if loss is None:
-            loss = mydict['loss'][-1]
+            loss = mydict['loss'][-1][0]
         else:
             pass  # the printed loss can be different from mydict['loss'][-1]
-        logqp_mean, logqp_std = mydict['logqp'][-1]
-        logz_mean, logz_std = mydict['logz'][-1]
-        accept_rate_mean, accept_rate_std = mydict['accept_rate'][-1]
+        logqp_mean, logqp_std = mydict['logqp'][-1][:-1]
+        logz_mean, logz_std = mydict['logz'][-1][:-1]
+        accept_rate_mean, accept_rate_std = mydict['accept_rate'][-1][:-1]
         # We now incorporate the effect of estimated log(z) to mean of log(q/p)
         adjusted_logqp_mean = logqp_mean + logz_mean
-        ess = mydict['ess'][-1]
-        rho = mydict['rho'][-1]
+        ess = mydict['ess'][-1][0]
+        rho = mydict['rho'][-1][0]
 
         if epoch == 1:
             print(f"\n>>> Training progress ({ess.device}) <<<\n")
