@@ -212,8 +212,6 @@ class Fitter:
     def __init__(self, model: Model):
 
         self._model = model
-        self.batch_size = 64
-        self.train_batch_size = 1
 
         self.train_history = dict(
                 loss=[], logqp=[], logz=[], ess=[], rho=[], accept_rate=[]
@@ -271,6 +269,7 @@ class Fitter:
         """
         self.hyperparam.update(hyperparam)
         self.checkpoint_dict.update(checkpoint_dict)
+        self.batch_size = batch_size
 
         snapshot_path = self.checkpoint_dict['snapshot_path']
 
@@ -320,7 +319,7 @@ class Fitter:
         """
         snapshot_path = self.checkpoint_dict['snapshot_path']
         epochs_run = epoch + self.checkpoint_dict['epochs_run']
-        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epochs_run) + ".tar" 
+        snapshot_new_path = snapshot_path.rsplit('.',2)[0] + ".E" + str(epochs_run) + ".pth" 
         snapshot = {
                     "MODEL_STATE": self._model.net_.state_dict(),
                      "EPOCHS_RUN": epochs_run }
